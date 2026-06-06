@@ -69,6 +69,15 @@ async def _process_job(job: Job, settings: Settings) -> None:
         )
         return
 
+    diff = get_diff(repo_path, initial_commit)
+    if not diff.strip():
+        platform.post_comment(
+            job.issue_number,
+            "AI processed this issue but made no code changes. "
+            "The issue may need more detail or clarification.",
+        )
+        return
+
     await asyncio.to_thread(push_branch, repo_path, branch, settings)
 
     pr_title = f"fix: {job.title} (resolves #{job.issue_number})"
@@ -79,7 +88,6 @@ async def _process_job(job: Job, settings: Settings) -> None:
     pr_url = platform.create_pr(branch, pr_title, pr_body)
     logger.info("Created PR/MR: %s", pr_url)
 
-    diff = get_diff(repo_path, initial_commit)
     review_comment = await asyncio.to_thread(
         run_review,
         issue_title=job.title,
