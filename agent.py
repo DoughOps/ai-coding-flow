@@ -1,5 +1,4 @@
 import logging
-import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -7,6 +6,7 @@ from tempfile import gettempdir
 from urllib.parse import urlparse, urlunparse
 
 from config import Settings
+from engines.base import AgentEngine
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +19,10 @@ def run_agent(
     issue_body: str,
     branch: str,
     settings: Settings,
+    engine: AgentEngine,
 ) -> tuple[bool, str, str, str]:
     """
-    Clone repo, run Aider, retry on test failure.
+    Clone repo, run engine, retry on test failure.
     Returns (success, repo_path, initial_commit, error_msg).
     Synchronous — caller must use asyncio.to_thread.
     """
@@ -33,11 +34,11 @@ def run_agent(
     prompt = _build_prompt(issue_title, issue_body)
 
     if not settings.test_cmd:
-        logger.info("Running Aider (no test cmd) for issue #%d", issue_number)
-        aider_output = _run_aider(repo_path, prompt, settings)
+        logger.info("Running %s (no test cmd) for issue #%d", engine.name, issue_number)
+        engine_output = engine.run(repo_path, prompt, settings)
         head_after = _git_head(repo_path)
         if head_after == initial_commit:
-            logger.warning("Aider made no commits for issue #%d. Aider output:\n%s", issue_number, aider_output)
+            logger.warning("%s made no commits for issue #%d. Output:\n%s", engine.name, issue_number, engine_output)
         return True, str(repo_path), initial_commit, ""
 
     error_msg = ""
@@ -48,8 +49,8 @@ def run_agent(
                 f"Test output:\n```\n{error_msg}\n```\n\n"
                 f"Please fix the code so all tests pass."
             )
-        logger.info("Running Aider (attempt %d/%d) for issue #%d", attempt + 1, settings.max_retries, issue_number)
-        _run_aider(repo_path, prompt, settings)
+        logger.info("Running %s (attempt %d/%d) for issue #%d", engine.name, attempt + 1, settings.max_retries, issue_number)
+        engine.run(repo_path, prompt, settings)
         passed, error_msg = _run_tests(repo_path, settings.test_cmd)
         if passed:
             return True, str(repo_path), initial_commit, ""
@@ -128,32 +129,6 @@ def _build_prompt(title: str, body: str) -> str:
         f"3. Write or update tests that verify the fix.\n"
         f"4. Make sure all tests pass before finishing."
     )
-
-
-def _run_aider(repo_path: Path, prompt: str, settings: Settings) -> str:
-    result = subprocess.run(
-        [
-            "aider",
-            "--model", settings.openai_model,
-            "--yes",
-            "--auto-commits",
-            "--no-stream",
-            "--message", prompt,
-        ],
-        cwd=str(repo_path),
-        env={
-            **os.environ,
-            "OPENAI_API_BASE": settings.openai_api_base,
-            "OPENAI_API_KEY": settings.openai_api_key,
-        },
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
-    output = (result.stdout + result.stderr).strip()
-    if settings.aider_verbose:
-        logger.info("Aider output:\n%s", output)
-    return output
 
 
 _PY_COMPAT_SHIM = '''\

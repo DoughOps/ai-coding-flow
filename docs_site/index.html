@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Coding Flow — Documentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── THEMES ── */
+    :root, [data-theme="light"] {
+      --sidebar-w: 260px;
+      --bg: #ffffff;
+      --surface: #f6f8fa;
+      --border: #d0d7de;
+      --accent: #0969da;
+      --accent2: #1a7f37;
+      --warn: #9a6700;
+      --danger: #d1242f;
+      --text: #1f2328;
+      --muted: #656d76;
+      --subtle: #818b98;
+      --code-bg: #f6f8fa;
+      --code-border: #d0d7de;
+      --code-text: #24292f;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --topbar-bg: rgba(255,255,255,0.92);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --surface: #161b22;
+      --border: #21262d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --warn: #d29922;
+      --danger: #f85149;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --subtle: #6e7681;
+      --code-bg: #161b22;
+      --code-border: #30363d;
+      --code-text: #e6edf3;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --topbar-bg: rgba(15,17,23,0.92);
+      color-scheme: dark;
+    }
+
+    /* ── BASE ── */
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      width: var(--sidebar-w);
+      height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .sidebar-logo {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.3px;
+    }
+    .sidebar-logo span {
+      font-size: 11px;
+      color: var(--muted);
+      display: block;
+      margin-top: 3px;
+    }
+
+    .sidebar nav { padding: 12px 0; flex: 1; }
+    .nav-group { margin-bottom: 4px; }
+    .nav-group-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 8px 20px 4px;
+    }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 20px;
+      font-size: 13.5px;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(128,128,128,0.07); }
+    .nav-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(9,105,218,0.07); }
+    [data-theme="dark"] .nav-link.active { background: rgba(88,166,255,0.08); }
+    .nav-link .icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+
+    /* ── MAIN ── */
+    .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      background: var(--topbar-bg);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 50;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-crumb { font-size: 13px; color: var(--muted); }
+    .topbar-crumb strong { color: var(--text); }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .topbar-badge {
+      font-size: 11px;
+      background: rgba(26,127,55,0.12);
+      color: var(--accent2);
+      border: 1px solid rgba(26,127,55,0.3);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    [data-theme="dark"] .topbar-badge {
+      background: rgba(63,185,80,0.15);
+      border-color: rgba(63,185,80,0.3);
+    }
+
+    /* ── THEME TOGGLE ── */
+    .theme-toggle {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .theme-toggle:hover { background: var(--bg); color: var(--text); border-color: var(--accent); }
+    /* show sun in dark mode, moon in light mode */
+    .theme-toggle .icon-sun  { display: none; }
+    .theme-toggle .icon-moon { display: block; }
+    [data-theme="dark"] .theme-toggle .icon-sun  { display: block; }
+    [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
+    .content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 40px 120px;
+    }
+
+    /* ── SECTIONS ── */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── TYPOGRAPHY ── */
+    h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 36px 0 12px;
+    }
+    h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin: 24px 0 8px;
+    }
+    p { margin-bottom: 14px; color: var(--text); }
+    ul, ol { padding-left: 22px; margin-bottom: 14px; }
+    li { margin-bottom: 6px; color: var(--text); }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, rgba(9,105,218,0.05) 0%, rgba(26,127,55,0.04) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 36px;
+      margin-bottom: 36px;
+    }
+    [data-theme="dark"] .hero {
+      background: linear-gradient(135deg, rgba(88,166,255,0.06) 0%, rgba(63,185,80,0.04) 100%);
+    }
+    .hero h2 { border: none; margin-bottom: 10px; padding: 0; }
+    .hero-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    .chip {
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid;
+      font-weight: 500;
+    }
+    .chip-blue  { color: var(--accent);  border-color: rgba(9,105,218,0.35);  background: rgba(9,105,218,0.07); }
+    .chip-green { color: var(--accent2); border-color: rgba(26,127,55,0.35);  background: rgba(26,127,55,0.07); }
+    .chip-yellow{ color: var(--warn);    border-color: rgba(154,103,0,0.35);  background: rgba(154,103,0,0.07); }
+    [data-theme="dark"] .chip-blue  { border-color: rgba(88,166,255,0.4);  background: rgba(88,166,255,0.08); }
+    [data-theme="dark"] .chip-green { border-color: rgba(63,185,80,0.4);   background: rgba(63,185,80,0.08); }
+    [data-theme="dark"] .chip-yellow{ border-color: rgba(210,153,34,0.4);  background: rgba(210,153,34,0.08); }
+
+    /* ── FLOW ── */
+    .flow {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      margin: 24px 0;
+      flex-wrap: wrap;
+    }
+    .flow-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 100px; }
+    .flow-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      text-align: center;
+      color: var(--text);
+      width: 100%;
+    }
+    .flow-box small { color: var(--muted); }
+    .flow-box.accent { border-color: rgba(9,105,218,0.5);  background: rgba(9,105,218,0.06); }
+    .flow-box.green  { border-color: rgba(26,127,55,0.5);  background: rgba(26,127,55,0.06); }
+    [data-theme="dark"] .flow-box.accent { border-color: rgba(88,166,255,0.5);  background: rgba(88,166,255,0.07); }
+    [data-theme="dark"] .flow-box.green  { border-color: rgba(63,185,80,0.5);   background: rgba(63,185,80,0.07); }
+    .flow-arrow { display: flex; align-items: center; padding: 0 8px; margin-top: 20px; color: var(--muted); font-size: 18px; flex-shrink: 0; }
+
+    /* ── CODE ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      position: relative;
+    }
+    code {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--code-text);
+    }
+    p code, li code, td code {
+      background: rgba(128,128,128,0.1);
+      border: 1px solid var(--code-border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12.5px;
+    }
+    .lang-tag {
+      position: absolute;
+      top: 8px; right: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    /* syntax highlight tokens */
+    .kw  { color: #cf222e; } [data-theme="dark"] .kw  { color: #ff7b72; }
+    .str { color: #0a3069; } [data-theme="dark"] .str { color: #a5d6ff; }
+    .cmt { color: #8c959f; } [data-theme="dark"] .cmt { color: #8b949e; }
+    .val { color: #0550ae; } [data-theme="dark"] .val { color: #79c0ff; }
+    .fn  { color: #6639ba; } [data-theme="dark"] .fn  { color: #d2a8ff; }
+    .num { color: #0550ae; } [data-theme="dark"] .num { color: #f2cc60; }
+
+    /* ── TABLES ── */
+    .table-wrap { overflow-x: auto; margin: 12px 0 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead th {
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(128,128,128,0.04); }
+
+    /* ── CALLOUTS ── */
+    .callout {
+      border-left: 3px solid;
+      border-radius: 0 6px 6px 0;
+      padding: 12px 16px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .callout p { margin: 0; }
+    .callout-info  { border-color: var(--accent);  background: rgba(9,105,218,0.07); }
+    .callout-warn  { border-color: var(--warn);    background: rgba(154,103,0,0.07); }
+    .callout-tip   { border-color: var(--accent2); background: rgba(26,127,55,0.07); }
+    [data-theme="dark"] .callout-info  { background: rgba(88,166,255,0.07); }
+    [data-theme="dark"] .callout-warn  { background: rgba(210,153,34,0.07); }
+    [data-theme="dark"] .callout-tip   { background: rgba(63,185,80,0.07); }
+    .callout-info  strong { color: var(--accent); }
+    .callout-warn  strong { color: var(--warn); }
+    .callout-tip   strong { color: var(--accent2); }
+
+    /* ── CARDS ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin: 16px 0 24px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .card-icon { font-size: 22px; margin-bottom: 10px; }
+    .card h4 { font-size: 14px; color: var(--text); text-transform: none; letter-spacing: 0; margin-bottom: 6px; }
+    .card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+    /* ── LABEL PILLS ── */
+    .label-pill {
+      display: inline-block;
+      font-size: 12px;
+      font-family: var(--mono);
+      padding: 2px 10px;
+      border-radius: 20px;
+      border: 1px solid;
+    }
+    .label-yellow { background: rgba(154,103,0,0.1);  border-color: rgba(154,103,0,0.4);  color: var(--warn); }
+    .label-green  { background: rgba(26,127,55,0.1);  border-color: rgba(26,127,55,0.4);  color: var(--accent2); }
+    .label-red    { background: rgba(209,36,47,0.1);  border-color: rgba(209,36,47,0.4);  color: var(--danger); }
+    .label-blue   { background: rgba(9,105,218,0.1);  border-color: rgba(9,105,218,0.4);  color: var(--accent); }
+    .label-purple { background: rgba(130,80,223,0.1); border-color: rgba(130,80,223,0.4); color: #8250df; }
+    [data-theme="dark"] .label-yellow { background: rgba(210,153,34,0.15);  border-color: rgba(210,153,34,0.4); color: var(--warn); }
+    [data-theme="dark"] .label-green  { background: rgba(63,185,80,0.15);   border-color: rgba(63,185,80,0.4);  color: var(--accent2); }
+    [data-theme="dark"] .label-red    { background: rgba(248,81,73,0.15);   border-color: rgba(248,81,73,0.4);  color: var(--danger); }
+    [data-theme="dark"] .label-blue   { background: rgba(88,166,255,0.15);  border-color: rgba(88,166,255,0.4); color: var(--accent); }
+    [data-theme="dark"] .label-purple { background: rgba(188,140,255,0.15); border-color: rgba(188,140,255,0.4); color: #bc8cff; }
+
+    /* ── ENDPOINTS ── */
+    .endpoint {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 10px 0;
+    }
+    .method { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; }
+    .method-post { background: rgba(26,127,55,0.15);  color: var(--accent2); border: 1px solid rgba(26,127,55,0.35); }
+    .method-get  { background: rgba(9,105,218,0.12);  color: var(--accent);  border: 1px solid rgba(9,105,218,0.3); }
+    [data-theme="dark"] .method-post { background: rgba(63,185,80,0.2);   border-color: rgba(63,185,80,0.4); }
+    [data-theme="dark"] .method-get  { background: rgba(88,166,255,0.2);  border-color: rgba(88,166,255,0.4); }
+    .endpoint-path { font-family: var(--mono); font-size: 14px; color: var(--text); }
+    .endpoint-desc { font-size: 13px; color: var(--muted); margin-left: auto; }
+
+    /* ── STEPS ── */
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li { counter-increment: step; display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+    .steps li::before {
+      content: counter(step);
+      background: rgba(9,105,218,0.1);
+      border: 1px solid rgba(9,105,218,0.3);
+      color: var(--accent);
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    [data-theme="dark"] .steps li::before {
+      background: rgba(88,166,255,0.15);
+      border-color: rgba(88,166,255,0.4);
+    }
+    .steps li div { flex: 1; }
+    .steps li strong { display: block; margin-bottom: 4px; }
+
+    /* ── FOOTER ── */
+    .page-footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.2s; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .content { padding: 24px 20px 80px; }
+      .topbar { padding: 10px 16px; }
+      .flow-arrow { display: none; }
+      .endpoint-desc { display: none; }
+    }
+    .menu-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    @media (max-width: 768px) { .menu-btn { display: block; } }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <h1>⚡ AI Coding Flow</h1>
+    <span>Documentation v1.0</span>
+  </div>
+  <nav>
+    <div class="nav-group">
+      <div class="nav-group-label">Getting Started</div>
+      <a class="nav-link active" href="#" data-section="overview">
+        <span class="icon">🏠</span> Overview
+      </a>
+      <a class="nav-link" href="#" data-section="quickstart">
+        <span class="icon">🚀</span> Quick Start
+      </a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Reference</div>
+      <a class="nav-link" href="#" data-section="configuration">
+        <span class="icon">⚙️</span> Configuration
+      </a>
+      <a class="nav-link" href="#" data-section="webhooks">
+        <span class="icon">🔗</span> Webhook Setup
+      </a>
+      <a class="nav-link" href="#" data-section="labels">
+        <span class="icon">🏷️</span> Labels
+      </a>
+      <a class="nav-link" href="#" data-section="api">
+        <span class="icon">📡</span> API Reference
+      </a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Deep Dive</div>
+      <a class="nav-link" href="#" data-section="architecture">
+        <span class="icon">🏗️</span> Architecture
+      </a>
+      <a class="nav-link" href="#" data-section="engines">
+        <span class="icon">🤖</span> Engine System
+      </a>
+      <a class="nav-link" href="#" data-section="platforms">
+        <span class="icon">🌐</span> Platforms
+      </a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Contribute</div>
+      <a class="nav-link" href="#" data-section="extending">
+        <span class="icon">🔌</span> Extending
+      </a>
+      <a class="nav-link" href="#" data-section="testing">
+        <span class="icon">🧪</span> Testing
+      </a>
+    </div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')" aria-label="Toggle menu">☰</button>
+      <span class="topbar-crumb" id="breadcrumb">Docs / <strong>Overview</strong></span>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-badge">v1.0</span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle light/dark mode">
+        <span class="icon-moon">🌙</span>
+        <span class="icon-sun">☀️</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         OVERVIEW
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section active" id="section-overview">
+      <div class="hero">
+        <h2>AI Coding Flow</h2>
+        <p>An autonomous AI coding workflow that watches GitHub and GitLab issues, writes code to resolve them, runs tests, opens a pull request, and posts a code review — all without human intervention.</p>
+        <div class="hero-chips">
+          <span class="chip chip-blue">FastAPI</span>
+          <span class="chip chip-blue">Aider · OpenCode</span>
+          <span class="chip chip-green">GitHub · GitLab</span>
+          <span class="chip chip-yellow">OpenAI-compatible LLM</span>
+        </div>
+      </div>
+
+      <h3>What it does</h3>
+      <p>You assign an issue, AI Coding Flow picks it up, writes code, and opens a PR — you only decide whether to merge.</p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-box accent">Issue opened<br/><small>GitHub / GitLab</small></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-box">Webhook<br/><small>HMAC verified</small></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-box">Job queue<br/><small>asyncio</small></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-box">Clone + branch<br/><small>/tmp/...</small></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-box">AI engine<br/><small>Aider / OpenCode</small></div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-box green">PR + Review<br/><small>human merges</small></div>
+        </div>
+      </div>
+
+      <h3>Key features</h3>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">🤖</div>
+          <h4>Pluggable engines</h4>
+          <p>Switch between Aider and OpenCode per issue using labels.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔁</div>
+          <h4>Retry loop</h4>
+          <p>Runs tests after every coding attempt and feeds failures back to the LLM.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔍</div>
+          <h4>AI code review</h4>
+          <p>A fresh LLM session reviews the diff and posts a structured comment.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏷️</div>
+          <h4>Label status</h4>
+          <p>Issue labels track progress: processing → done / failed / needs clarification.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h4>GitHub + GitLab</h4>
+          <p>Supports both platforms, including self-hosted GitLab.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📴</div>
+          <h4>Fully offline</h4>
+          <p>Any OpenAI-compatible endpoint works — local Ollama, OpenRouter, etc.</p>
+        </div>
+      </div>
+
+      <h3>Non-goals</h3>
+      <ul>
+        <li>Auto-merging PRs/MRs — the human always clicks merge</li>
+        <li>Parallel issue processing — jobs run sequentially</li>
+        <li>Handling issue comments or updates — only "issue opened" and label events trigger work</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         QUICK START
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-quickstart">
+      <h2>Quick Start</h2>
+      <p>Get AI Coding Flow running in under 5 minutes.</p>
+
+      <h3>Prerequisites</h3>
+      <ul>
+        <li>Python 3.11+</li>
+        <li><code>aider-chat</code> installed and on <code>$PATH</code></li>
+        <li>A GitHub or GitLab account with a repository</li>
+        <li>An OpenAI-compatible LLM endpoint (local Ollama, OpenRouter, etc.)</li>
+        <li>A publicly reachable URL for your server (or a tunnel like <code>ngrok</code>)</li>
+      </ul>
+
+      <h3>Installation</h3>
+      <ol class="steps">
+        <li>
+          <div>
+            <strong>Clone the repository</strong>
+            <pre><code>git clone https://github.com/t-community/ai-coding-flow
+cd ai-coding-flow</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Install Python dependencies</strong>
+            <pre><code>pip install -r requirements.txt</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Create your <code>.env</code> file</strong>
+            <pre><code>cp .env.example .env
+# then edit .env with your values</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Start the server</strong>
+            <pre><code>uvicorn server:app --host 0.0.0.0 --port 8000</code></pre>
+            <p style="margin-top:8px;">Or with Docker:</p>
+            <pre><code>docker build -t ai-coding-flow .
+docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Configure webhooks on your platform</strong>
+            <p>See <a href="#" data-section="webhooks">Webhook Setup</a> for step-by-step instructions.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Open a test issue</strong>
+            <p>Create an issue in your repository. Within seconds the <span class="label-pill label-yellow">ai: processing</span> label appears, and minutes later a PR is created with a review comment.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="callout callout-tip">
+        <p><strong>Tip:</strong> Set <code>AIDER_VERBOSE=true</code> in your <code>.env</code> to see the full Aider output in the server logs — useful for debugging why an AI run produced no changes.</p>
+      </div>
+
+      <h3>Verifying the server</h3>
+      <pre><code>curl http://localhost:8000/health
+# → {"status":"ok"}</code></pre>
+
+      <p>The interactive API docs are available at <a href="/docs">/docs</a> (Swagger UI) and <a href="/redoc">/redoc</a> (ReDoc).</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         CONFIGURATION
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-configuration">
+      <h2>Configuration</h2>
+      <p>All configuration is read from a <code>.env</code> file (or environment variables). Copy <code>.env.example</code> to <code>.env</code> and fill in the values.</p>
+
+      <h3>Platform settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>PLATFORM</code></td><td>✅</td><td>—</td><td><code>github</code> or <code>gitlab</code></td></tr>
+            <tr><td><code>REPO_URL</code></td><td>✅</td><td>—</td><td>Full URL of the target repository</td></tr>
+            <tr><td><code>GITHUB_TOKEN</code></td><td>if GitHub</td><td><code>""</code></td><td>Personal access token or GitHub App token</td></tr>
+            <tr><td><code>GITLAB_TOKEN</code></td><td>if GitLab</td><td><code>""</code></td><td>Project access token with <code>api</code> scope</td></tr>
+            <tr><td><code>WEBHOOK_SECRET</code></td><td>✅</td><td>—</td><td>Secret used to verify incoming webhook payloads</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>LLM settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>OPENAI_API_BASE</code></td><td>✅</td><td>—</td><td>Base URL of the OpenAI-compatible endpoint</td></tr>
+            <tr><td><code>OPENAI_API_KEY</code></td><td>—</td><td><code>local</code></td><td>API key (use <code>local</code> for unauthenticated endpoints)</td></tr>
+            <tr><td><code>OPENAI_MODEL</code></td><td>—</td><td><code>qwen2.5-coder:32b</code></td><td>Model name passed to the engine</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Workflow settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>MAX_RETRIES</code></td><td><code>3</code></td><td>Max test-fix cycles before giving up</td></tr>
+            <tr><td><code>TEST_CMD</code></td><td><code>""</code></td><td>Shell command to run tests. Leave empty to skip test verification entirely.</td></tr>
+            <tr><td><code>DEFAULT_AGENT</code></td><td><code>aider</code></td><td>Default AI engine when no <code>agent:</code> label is present</td></tr>
+            <tr><td><code>AIDER_VERBOSE</code></td><td><code>false</code></td><td>Log full Aider output at INFO level for debugging</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Example <code>.env</code></h3>
+      <pre><div class="lang-tag">.env</div><code><span class="cmt"># Platform</span>
+PLATFORM=github
+REPO_URL=https://github.com/your-org/your-repo
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+WEBHOOK_SECRET=a-strong-random-secret
+
+<span class="cmt"># LLM (OpenRouter example)</span>
+OPENAI_API_BASE=https://openrouter.ai/api/v1
+OPENAI_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxx
+OPENAI_MODEL=openai/gpt-4o
+
+<span class="cmt"># Workflow</span>
+MAX_RETRIES=3
+TEST_CMD=pytest
+DEFAULT_AGENT=aider
+AIDER_VERBOSE=false</code></pre>
+
+      <div class="callout callout-info">
+        <p><strong>Note:</strong> When <code>TEST_CMD</code> is empty the engine runs once with no feedback loop — useful for repositories that don't have automated tests.</p>
+      </div>
+
+      <h3>Using a local LLM (Ollama)</h3>
+      <pre><div class="lang-tag">.env</div><code>OPENAI_API_BASE=http://localhost:11434/v1
+OPENAI_API_KEY=local
+OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         WEBHOOKS
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-webhooks">
+      <h2>Webhook Setup</h2>
+      <p>AI Coding Flow needs to receive webhook events from your Git platform whenever an issue is opened or an <code>agent:</code> label is added.</p>
+
+      <div class="callout callout-warn">
+        <p><strong>Public URL required:</strong> GitHub and GitLab must reach your server. Use <code>ngrok http 8000</code> during development, or deploy to a server with a public IP.</p>
+      </div>
+
+      <h3>GitHub</h3>
+      <ol class="steps">
+        <li>
+          <div>
+            <strong>Go to Settings → Webhooks → Add webhook</strong>
+            <p>Navigate to your repository on GitHub.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Fill in the form</strong>
+            <div class="table-wrap" style="margin-top:10px;">
+              <table>
+                <tbody>
+                  <tr><td><strong>Payload URL</strong></td><td><code>https://your-server.example.com/webhook/github</code></td></tr>
+                  <tr><td><strong>Content type</strong></td><td><code>application/json</code></td></tr>
+                  <tr><td><strong>Secret</strong></td><td>Same value as <code>WEBHOOK_SECRET</code> in your <code>.env</code></td></tr>
+                  <tr><td><strong>Events</strong></td><td>Select <em>Issues</em> only</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Click "Add webhook"</strong>
+            <p>GitHub will send a ping event. Check your server logs for a 200 response.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="callout callout-info">
+        <p><strong>Events triggered:</strong> The <em>Issues</em> event covers both <code>opened</code> (new issue) and <code>labeled</code> (label added) — both are needed for AI Coding Flow.</p>
+      </div>
+
+      <h3>GitLab</h3>
+      <ol class="steps">
+        <li>
+          <div>
+            <strong>Go to Settings → Webhooks</strong>
+            <p>Navigate to your project in GitLab.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Fill in the form</strong>
+            <div class="table-wrap" style="margin-top:10px;">
+              <table>
+                <tbody>
+                  <tr><td><strong>URL</strong></td><td><code>https://your-server.example.com/webhook/gitlab</code></td></tr>
+                  <tr><td><strong>Secret token</strong></td><td>Same value as <code>WEBHOOK_SECRET</code></td></tr>
+                  <tr><td><strong>Trigger</strong></td><td>Enable <em>Issues events</em></td></tr>
+                  <tr><td><strong>SSL verification</strong></td><td>Enable if your server has a valid TLS certificate</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Click "Add webhook" and test it</strong>
+            <p>GitLab provides a "Test" button — send an Issues event and verify the server returns 200.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3>Security</h3>
+      <p>GitHub webhooks are verified with HMAC-SHA256. GitLab webhooks use a shared secret token. Both are compared with constant-time comparison to prevent timing attacks. Requests with invalid signatures return <strong>HTTP 403</strong>.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         LABELS
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-labels">
+      <h2>Labels</h2>
+      <p>AI Coding Flow uses two label namespaces: <code>ai:</code> for status tracking and <code>agent:</code> for engine selection.</p>
+
+      <h3>Status labels (managed automatically)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Label</th><th>Set when</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="label-pill label-yellow">ai: processing</span></td>
+              <td>Job is picked up by the worker — coding is in progress</td>
+            </tr>
+            <tr>
+              <td><span class="label-pill label-green">ai: done</span></td>
+              <td>PR created and review comment posted successfully</td>
+            </tr>
+            <tr>
+              <td><span class="label-pill label-red">ai: failed</span></td>
+              <td>Engine exhausted retries or an unexpected error occurred</td>
+            </tr>
+            <tr>
+              <td><span class="label-pill label-blue">ai: needs clarification</span></td>
+              <td>Engine ran but made zero code changes — the issue needs more detail</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Engine labels (set by you)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Label</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="label-pill label-yellow">agent: aider</span></td>
+              <td>Use the <a href="#" data-section="engines">Aider engine</a> for this issue</td>
+            </tr>
+            <tr>
+              <td><span class="label-pill label-purple">agent: opencode</span></td>
+              <td>Use the <a href="#" data-section="engines">OpenCode engine</a> for this issue</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-tip">
+        <p><strong>Re-triggering:</strong> Adding an <code>agent:</code> label to an issue fires a webhook that re-enqueues the job. If the previous run failed with Aider, add <span class="label-pill label-purple">agent: opencode</span> to retry with a different engine.</p>
+      </div>
+
+      <h3>Label selection logic</h3>
+      <ol>
+        <li>Scans the issue's current labels for the first one starting with <code>agent: </code></li>
+        <li>If found, uses that engine by name (falls back to Aider if the name is unrecognized)</li>
+        <li>If no <code>agent:</code> label is present, uses the <code>DEFAULT_AGENT</code> setting</li>
+      </ol>
+
+      <div class="callout callout-warn">
+        <p><strong>Multiple <code>agent:</code> labels:</strong> If an issue has both <code>agent: aider</code> and <code>agent: opencode</code>, whichever appears first in the API response is used. Remove the unwanted one to be explicit.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         API REFERENCE
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-api">
+      <h2>API Reference</h2>
+
+      <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/webhook/github</span>
+        <span class="endpoint-desc">Receive GitHub webhook events</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Auth</strong></td><td>HMAC-SHA256 via <code>X-Hub-Signature-256</code></td></tr>
+            <tr><td><strong>Actions</strong></td><td><code>opened</code> (issue created), <code>labeled</code> (agent label added)</td></tr>
+            <tr><td><strong>Response</strong></td><td><code>{"status": "queued"}</code> or <code>{"status": "ignored"}</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="endpoint">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/webhook/gitlab</span>
+        <span class="endpoint-desc">Receive GitLab webhook events</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Auth</strong></td><td>Shared secret via <code>X-Gitlab-Token</code></td></tr>
+            <tr><td><strong>Actions</strong></td><td><code>open</code> (issue created), <code>update</code> with new <code>agent:</code> label</td></tr>
+            <tr><td><strong>Response</strong></td><td><code>{"status": "queued"}</code> or <code>{"status": "ignored"}</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/health</span>
+        <span class="endpoint-desc">Health check — returns <code>{"status":"ok"}</code></span>
+      </div>
+
+      <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/guide</span>
+        <span class="endpoint-desc">This documentation</span>
+      </div>
+
+      <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/docs</span>
+        <span class="endpoint-desc">Swagger UI</span>
+      </div>
+
+      <div class="endpoint">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/redoc</span>
+        <span class="endpoint-desc">ReDoc API reference</span>
+      </div>
+
+      <h3>GitHub payload examples</h3>
+      <pre><div class="lang-tag">issue opened</div><code>{
+  <span class="str">"action"</span>: <span class="str">"opened"</span>,
+  <span class="str">"issue"</span>: {
+    <span class="str">"number"</span>: <span class="num">42</span>,
+    <span class="str">"title"</span>: <span class="str">"Fix login button not responding"</span>,
+    <span class="str">"body"</span>: <span class="str">"Clicking the login button does nothing in Safari..."</span>
+  }
+}</code></pre>
+      <pre><div class="lang-tag">label added</div><code>{
+  <span class="str">"action"</span>: <span class="str">"labeled"</span>,
+  <span class="str">"label"</span>: { <span class="str">"name"</span>: <span class="str">"agent: opencode"</span> },
+  <span class="str">"issue"</span>: { <span class="str">"number"</span>: <span class="num">42</span>, <span class="str">"title"</span>: <span class="str">"..."</span>, <span class="str">"body"</span>: <span class="str">"..."</span> }
+}</code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         ARCHITECTURE
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-architecture">
+      <h2>Architecture</h2>
+
+      <h3>Directory structure</h3>
+      <pre><div class="lang-tag">tree</div><code>ai-coding-flow/
+├── server.py        <span class="cmt"># FastAPI app — webhook endpoints, docs</span>
+├── worker.py        <span class="cmt"># asyncio job queue + orchestration</span>
+├── agent.py         <span class="cmt"># git operations + engine retry loop</span>
+├── reviewer.py      <span class="cmt"># AI code review (fresh LLM session)</span>
+├── config.py        <span class="cmt"># pydantic-settings (.env → Settings)</span>
+├── engines/
+│   ├── base.py      <span class="cmt"># AgentEngine ABC</span>
+│   ├── aider.py     <span class="cmt"># Aider implementation</span>
+│   ├── opencode.py  <span class="cmt"># OpenCode implementation</span>
+│   └── __init__.py  <span class="cmt"># get_engine() factory</span>
+├── platforms/
+│   ├── base.py      <span class="cmt"># GitPlatform ABC</span>
+│   ├── github.py    <span class="cmt"># PyGitHub implementation</span>
+│   ├── gitlab.py    <span class="cmt"># python-gitlab implementation</span>
+│   └── __init__.py  <span class="cmt"># create_platform() factory</span>
+└── docs_site/
+    └── index.html   <span class="cmt"># this page</span></code></pre>
+
+      <h3>Request lifecycle</h3>
+      <ol class="steps">
+        <li><div><strong>Webhook received</strong><p><code>server.py</code> verifies the signature and enqueues the job as a background task, returning 200 within milliseconds.</p></div></li>
+        <li><div><strong>Engine selection</strong><p><code>worker.py</code> reads the issue's labels and calls <code>_pick_engine()</code> to select Aider, OpenCode, or the configured default.</p></div></li>
+        <li><div><strong>Repository preparation</strong><p><code>agent.py</code> clones to <code>/tmp/ai-coding-flow/&lt;issue_number&gt;/</code> (or fetches if cached) and creates branch <code>ai/issue-{n}-{slug}</code>.</p></div></li>
+        <li><div><strong>AI coding loop</strong><p>The selected engine is called with the prompt. If <code>TEST_CMD</code> is set, tests run after each attempt; failures feed back to the engine. Repeats up to <code>MAX_RETRIES</code> times.</p></div></li>
+        <li><div><strong>PR creation and review</strong><p>The branch is pushed, a PR/MR is created via the platform API, then a separate AI session reviews the diff and posts a comment.</p></div></li>
+      </ol>
+
+      <h3>Concurrency model</h3>
+      <p>FastAPI handles concurrent HTTP requests asynchronously. AI coding work runs in a thread pool via <code>asyncio.to_thread()</code>. The job queue is sequential — one issue processes at a time — to avoid git conflicts.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         ENGINES
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-engines">
+      <h2>Engine System</h2>
+      <p>Engines are pluggable AI coding backends. Each engine receives a repository path, a prompt, and the settings object, and is responsible for making code changes to the working tree.</p>
+
+      <h3>Built-in engines</h3>
+
+      <h4>Aider (default)</h4>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Label</strong></td><td><span class="label-pill label-yellow">agent: aider</span></td></tr>
+            <tr><td><strong>Binary</strong></td><td><code>aider</code> (must be on <code>$PATH</code>)</td></tr>
+            <tr><td><strong>LLM env var</strong></td><td><code>OPENAI_API_BASE</code>, <code>OPENAI_API_KEY</code></td></tr>
+            <tr><td><strong>Flags</strong></td><td><code>--yes --auto-commits --no-stream --message &lt;prompt&gt;</code></td></tr>
+            <tr><td><strong>Verbose logging</strong></td><td>Set <code>AIDER_VERBOSE=true</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>OpenCode</h4>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Label</strong></td><td><span class="label-pill label-purple">agent: opencode</span></td></tr>
+            <tr><td><strong>Binary</strong></td><td><code>opencode</code> (must be on <code>$PATH</code>)</td></tr>
+            <tr><td><strong>LLM env var</strong></td><td><code>OPENAI_BASE_URL</code>, <code>OPENAI_API_KEY</code></td></tr>
+            <tr><td><strong>Flags</strong></td><td><code>--model &lt;model&gt; --message &lt;prompt&gt;</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-info">
+        <p><strong>Note:</strong> OpenCode uses <code>OPENAI_BASE_URL</code> while Aider uses <code>OPENAI_API_BASE</code>. Both are populated from the same <code>OPENAI_API_BASE</code> config value.</p>
+      </div>
+
+      <h3>AgentEngine ABC</h3>
+      <pre><div class="lang-tag">engines/base.py</div><code><span class="kw">from</span> abc <span class="kw">import</span> ABC, abstractmethod
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> config <span class="kw">import</span> Settings
+
+<span class="kw">class</span> <span class="fn">AgentEngine</span>(ABC):
+    <span class="val">@property</span>
+    <span class="val">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">name</span>(self) -> str: ...
+
+    <span class="val">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">run</span>(self, repo_path: Path, prompt: str, settings: Settings) -> str:
+        <span class="str">"""Returns combined stdout+stderr. Exceptions propagate."""</span>
+        ...</code></pre>
+
+      <h3>Factory</h3>
+      <pre><div class="lang-tag">engines/__init__.py</div><code><span class="kw">from</span> engines <span class="kw">import</span> get_engine
+
+get_engine(<span class="str">"aider"</span>)    <span class="cmt"># → AiderEngine()</span>
+get_engine(<span class="str">"opencode"</span>) <span class="cmt"># → OpenCodeEngine()</span>
+get_engine(<span class="str">"unknown"</span>)  <span class="cmt"># → AiderEngine() + warning log</span></code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         PLATFORMS
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-platforms">
+      <h2>Platforms</h2>
+      <p>The platform abstraction provides a uniform interface to GitHub and GitLab. All API interactions go through the <code>GitPlatform</code> ABC.</p>
+
+      <h3>GitPlatform interface</h3>
+      <pre><div class="lang-tag">platforms/base.py</div><code><span class="kw">class</span> <span class="fn">GitPlatform</span>(ABC):
+    <span class="kw">def</span> <span class="fn">get_issue</span>(self, number: int) -> Issue: ...
+    <span class="kw">def</span> <span class="fn">create_pr</span>(self, branch: str, title: str, body: str) -> str: ...
+    <span class="kw">def</span> <span class="fn">post_comment</span>(self, issue_number: int, body: str) -> None: ...
+    <span class="kw">def</span> <span class="fn">set_label</span>(self, issue_number: int, label: str) -> None: ...
+    <span class="kw">def</span> <span class="fn">remove_label</span>(self, issue_number: int, label: str) -> None: ...
+    <span class="kw">def</span> <span class="fn">get_labels</span>(self, issue_number: int) -> list[str]: ...
+    <span class="cmt"># Returns [] if issue not found (never raises)</span></code></pre>
+
+      <h3>GitHub</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Library</strong></td><td><code>PyGitHub</code></td></tr>
+            <tr><td><strong>Auth</strong></td><td>Personal access token or GitHub App token in <code>GITHUB_TOKEN</code></td></tr>
+            <tr><td><strong>Label creation</strong></td><td>Labels are auto-created with color <code>#ededed</code> if they don't exist</td></tr>
+            <tr><td><strong>Webhook verification</strong></td><td>HMAC-SHA256 via <code>X-Hub-Signature-256</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>GitLab</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Library</strong></td><td><code>python-gitlab</code></td></tr>
+            <tr><td><strong>Auth</strong></td><td>Project or personal access token in <code>GITLAB_TOKEN</code></td></tr>
+            <tr><td><strong>Labels</strong></td><td>Labels must exist on the project before they can be applied</td></tr>
+            <tr><td><strong>Webhook verification</strong></td><td>Shared secret via <code>X-Gitlab-Token</code></td></tr>
+            <tr><td><strong>Self-hosted</strong></td><td>Set <code>REPO_URL</code> to your self-hosted GitLab URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         EXTENDING
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-extending">
+      <h2>Extending</h2>
+
+      <h3>Adding a new AI engine</h3>
+      <ol class="steps">
+        <li>
+          <div>
+            <strong>Create <code>engines/myengine.py</code></strong>
+            <pre><div class="lang-tag">engines/myengine.py</div><code><span class="kw">import</span> subprocess
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> config <span class="kw">import</span> Settings
+<span class="kw">from</span> engines.base <span class="kw">import</span> AgentEngine
+
+<span class="kw">class</span> <span class="fn">MyEngine</span>(AgentEngine):
+    <span class="val">@property</span>
+    <span class="kw">def</span> <span class="fn">name</span>(self) -> str:
+        <span class="kw">return</span> <span class="str">"myengine"</span>
+
+    <span class="kw">def</span> <span class="fn">run</span>(self, repo_path: Path, prompt: str, settings: Settings) -> str:
+        result = subprocess.run(
+            [<span class="str">"myengine-cli"</span>, <span class="str">"--prompt"</span>, prompt],
+            cwd=str(repo_path), capture_output=<span class="val">True</span>,
+            text=<span class="val">True</span>, timeout=<span class="num">600</span>,
+        )
+        <span class="kw">return</span> (result.stdout + result.stderr).strip()</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Register in <code>engines/__init__.py</code></strong>
+            <pre><code>_ENGINES = {
+    <span class="str">"aider"</span>:    AiderEngine,
+    <span class="str">"opencode"</span>: OpenCodeEngine,
+    <span class="str">"myengine"</span>: MyEngine,   <span class="cmt"># ← add this</span>
+}</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Create the label in your repository</strong>
+            <p>Add an <span class="label-pill label-blue">agent: myengine</span> label to your GitHub/GitLab project, then apply it to an issue.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3>Adding a new platform</h3>
+      <ol class="steps">
+        <li><div><strong>Implement <code>platforms/bitbucket.py</code></strong><p>Subclass <code>GitPlatform</code> and implement all 6 abstract methods.</p></div></li>
+        <li><div><strong>Register in <code>platforms/__init__.py</code></strong><pre><code><span class="kw">if</span> settings.platform == <span class="str">"bitbucket"</span>:
+    <span class="kw">return</span> BitbucketPlatform(...)</code></pre></div></li>
+        <li><div><strong>Add a webhook endpoint in <code>server.py</code></strong><p>Add <code>@app.post("/webhook/bitbucket")</code> with appropriate verification.</p></div></li>
+        <li><div><strong>Update <code>config.py</code></strong><p>Add the new platform to the <code>Literal</code> type and any required token fields.</p></div></li>
+      </ol>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         TESTING
+    ══════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-testing">
+      <h2>Testing</h2>
+
+      <h3>Running the test suite</h3>
+      <pre><code><span class="cmt"># All tests</span>
+pytest -v
+
+<span class="cmt"># Specific module</span>
+pytest tests/test_engines.py -v
+
+<span class="cmt"># Filter by keyword</span>
+pytest -k "get_labels" -v</code></pre>
+
+      <p>All tests are unit tests — no network calls, no LLM invocations. External dependencies are mocked with <code>unittest.mock</code>.</p>
+
+      <h3>Test structure</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Coverage</th></tr></thead>
+          <tbody>
+            <tr><td><code>tests/test_config.py</code></td><td>Settings validation, missing fields, defaults</td></tr>
+            <tr><td><code>tests/test_engines.py</code></td><td>AgentEngine ABC, AiderEngine, OpenCodeEngine, factory</td></tr>
+            <tr><td><code>tests/test_agent.py</code></td><td>Prompt building, URL auth, engine delegation</td></tr>
+            <tr><td><code>tests/test_worker.py</code></td><td>Job slugs, engine label selection</td></tr>
+            <tr><td><code>tests/test_server.py</code></td><td>Webhook signature verification, payload routing</td></tr>
+            <tr><td><code>tests/test_platforms/</code></td><td>GitHub + GitLab CRUD, label management</td></tr>
+            <tr><td><code>tests/test_reviewer.py</code></td><td>Review prompt construction</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>CI</h3>
+      <p>The repository includes a GitHub Actions workflow at <code>.github/workflows/test.yml</code> that runs the full suite on every push and pull request.</p>
+      <pre><code>pytest --tb=short -q   <span class="cmt"># same check locally</span></code></pre>
+    </section>
+
+    <footer class="page-footer">
+      <span>AI Coding Flow — built with FastAPI</span>
+      <span>View source on <a href="https://github.com/t-community/ai-coding-flow" target="_blank">GitHub</a></span>
+    </footer>
+
+  </div><!-- .content -->
+</div><!-- .main -->
+
+<script>
+  // ── Theme toggle ──────────────────────────────────────────────────────
+  const html = document.documentElement;
+
+  function applyTheme(theme) {
+    html.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  // On load: prefer saved preference, then system preference, else light
+  (function () {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') {
+      applyTheme(saved);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      applyTheme('dark');
+    }
+    // else stays light (HTML default)
+  })();
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  // ── Navigation ────────────────────────────────────────────────────────
+  const navLinks  = document.querySelectorAll('.nav-link[data-section]');
+  const sections  = document.querySelectorAll('.section');
+  const crumb     = document.getElementById('breadcrumb');
+
+  const TITLES = {
+    overview: 'Overview', quickstart: 'Quick Start',
+    configuration: 'Configuration', webhooks: 'Webhook Setup',
+    labels: 'Labels', api: 'API Reference',
+    architecture: 'Architecture', engines: 'Engine System',
+    platforms: 'Platforms', extending: 'Extending', testing: 'Testing',
+  };
+
+  function navigate(id) {
+    sections.forEach(s => s.classList.remove('active'));
+    navLinks.forEach(l => l.classList.remove('active'));
+
+    const sec = document.getElementById('section-' + id);
+    if (sec) { sec.classList.add('active'); window.scrollTo({ top: 0, behavior: 'instant' }); }
+
+    const lnk = document.querySelector(`.nav-link[data-section="${id}"]`);
+    if (lnk) lnk.classList.add('active');
+
+    crumb.innerHTML = `Docs / <strong>${TITLES[id] || id}</strong>`;
+    history.pushState(null, '', '#' + id);
+  }
+
+  navLinks.forEach(l => l.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(l.dataset.section);
+    document.getElementById('sidebar').classList.remove('open');
+  }));
+
+  // Handle inline content links
+  document.querySelector('.content').addEventListener('click', e => {
+    const a = e.target.closest('a[data-section]');
+    if (a) { e.preventDefault(); navigate(a.dataset.section); }
+  });
+
+  // Restore from URL hash
+  const hash = location.hash.slice(1);
+  if (hash && TITLES[hash]) navigate(hash);
+</script>
+
+</body>
+</html>

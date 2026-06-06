@@ -31,3 +31,8 @@ class GitPlatform(ABC):
     def remove_label(self, issue_number: int, label: str) -> None:
         """Remove a label from the issue. Silently ignored if not present."""
         ...
+
+    @abstractmethod
+    def get_labels(self, issue_number: int) -> list[str]:
+        """Return the names of all labels on the issue. Returns [] if not found."""
+        ...

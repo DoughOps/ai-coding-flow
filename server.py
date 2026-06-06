@@ -3,8 +3,11 @@ import hashlib
 import hmac
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import Settings
 from worker import enqueue_job, start_worker
@@ -24,7 +27,20 @@ async def lifespan(app: FastAPI):
         pass
 
 
+_DOCS_DIR = Path(__file__).parent / "docs_site"
+
 app = FastAPI(lifespan=lifespan)
+app.mount("/guide", StaticFiles(directory=str(_DOCS_DIR), html=True), name="docs")
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/guide")
 
 
 @app.post("/webhook/github")
@@ -34,18 +50,33 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     _verify_github_signature(body, signature, settings.webhook_secret)
 
     payload = await request.json()
-    if payload.get("action") != "opened" or "issue" not in payload:
-        return {"status": "ignored"}
+    action = payload.get("action")
 
-    issue = payload["issue"]
-    background_tasks.add_task(
-        enqueue_job,
-        platform="github",
-        issue_number=issue["number"],
-        title=issue.get("title", ""),
-        body=issue.get("body") or "",
-    )
-    return {"status": "queued"}
+    if action == "opened" and "issue" in payload:
+        issue = payload["issue"]
+        background_tasks.add_task(
+            enqueue_job,
+            platform="github",
+            issue_number=issue["number"],
+            title=issue.get("title", ""),
+            body=issue.get("body") or "",
+        )
+        return {"status": "queued"}
+
+    if action == "labeled" and "issue" in payload:
+        label_name = payload.get("label", {}).get("name", "")
+        if label_name.startswith("agent: "):
+            issue = payload["issue"]
+            background_tasks.add_task(
+                enqueue_job,
+                platform="github",
+                issue_number=issue["number"],
+                title=issue.get("title", ""),
+                body=issue.get("body") or "",
+            )
+            return {"status": "queued"}
+
+    return {"status": "ignored"}
 
 
 @app.post("/webhook/gitlab")
@@ -56,17 +87,33 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
 
     payload = await request.json()
     attrs = payload.get("object_attributes", {})
-    if payload.get("object_kind") != "issue" or attrs.get("action") != "open":
-        return {"status": "ignored"}
 
-    background_tasks.add_task(
-        enqueue_job,
-        platform="gitlab",
-        issue_number=attrs["iid"],
-        title=attrs.get("title", ""),
-        body=attrs.get("description") or "",
-    )
-    return {"status": "queued"}
+    if payload.get("object_kind") == "issue" and attrs.get("action") == "open":
+        background_tasks.add_task(
+            enqueue_job,
+            platform="gitlab",
+            issue_number=attrs["iid"],
+            title=attrs.get("title", ""),
+            body=attrs.get("description") or "",
+        )
+        return {"status": "queued"}
+
+    if payload.get("object_kind") == "issue" and attrs.get("action") == "update":
+        label_changes = payload.get("changes", {}).get("labels", {})
+        previous = {l.get("title", "") for l in label_changes.get("previous", [])}
+        current = {l.get("title", "") for l in label_changes.get("current", [])}
+        newly_added = current - previous
+        if any(lbl.startswith("agent: ") for lbl in newly_added):
+            background_tasks.add_task(
+                enqueue_job,
+                platform="gitlab",
+                issue_number=attrs["iid"],
+                title=attrs.get("title", ""),
+                body=attrs.get("description") or "",
+            )
+            return {"status": "queued"}
+
+    return {"status": "ignored"}
 
 
 def _verify_github_signature(body: bytes, signature: str, secret: str) -> None:

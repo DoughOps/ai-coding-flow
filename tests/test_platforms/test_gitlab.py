@@ -94,3 +94,28 @@ def test_post_comment_not_found_raises(platform, mock_project):
     mock_project.issues.list.return_value = []
     with pytest.raises(ValueError, match="Issue #99 not found"):
         platform.post_comment(99, "comment")
+
+
+def test_get_labels_returns_list(platform, mock_project):
+    gl_issue = MagicMock()
+    gl_issue.labels = ["agent: opencode", "ai: done"]
+    mock_project.issues.list.return_value = [gl_issue]
+
+    labels = platform.get_labels(7)
+    assert labels == ["agent: opencode", "ai: done"]
+
+
+def test_get_labels_returns_empty_when_issue_not_found(platform, mock_project):
+    mock_project.issues.list.return_value = []
+
+    labels = platform.get_labels(999)
+    assert labels == []
+
+
+def test_get_labels_returns_empty_when_labels_is_none(platform, mock_project):
+    gl_issue = MagicMock()
+    gl_issue.labels = None
+    mock_project.issues.list.return_value = [gl_issue]
+
+    labels = platform.get_labels(7)
+    assert labels == []

@@ -58,3 +58,7 @@ class GitLabPlatform(GitPlatform):
         labels = [l for l in (gl_issue.labels or []) if l != label]
         gl_issue.labels = labels
         gl_issue.save()
+
+    def get_labels(self, issue_number: int) -> list[str]:
+        issues = self._project.issues.list(iid=issue_number)
+        return list(issues[0].labels or []) if issues else []

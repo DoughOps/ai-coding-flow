@@ -42,3 +42,9 @@ class GitHubPlatform(GitPlatform):
             self._repo.get_issue(issue_number).remove_from_labels(label)
         except Exception:
             pass
+
+    def get_labels(self, issue_number: int) -> list[str]:
+        try:
+            return [label.name for label in self._repo.get_issue(issue_number).labels]
+        except Exception:
+            return []

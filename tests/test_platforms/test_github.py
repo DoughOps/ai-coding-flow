@@ -77,3 +77,32 @@ def test_post_comment_calls_create_comment(platform, mock_repo):
 
     mock_repo.get_issue.assert_called_once_with(42)
     issue.create_comment.assert_called_once_with("AI could not fix this issue.")
+
+
+def test_get_labels_returns_list(platform, mock_repo):
+    mock_issue = MagicMock()
+    lbl1 = MagicMock()
+    lbl1.name = "agent: aider"
+    lbl2 = MagicMock()
+    lbl2.name = "ai: processing"
+    mock_issue.labels = [lbl1, lbl2]
+    mock_repo.get_issue.return_value = mock_issue
+
+    labels = platform.get_labels(42)
+    assert labels == ["agent: aider", "ai: processing"]
+
+
+def test_get_labels_empty_when_no_labels(platform, mock_repo):
+    mock_issue = MagicMock()
+    mock_issue.labels = []
+    mock_repo.get_issue.return_value = mock_issue
+
+    labels = platform.get_labels(42)
+    assert labels == []
+
+
+def test_get_labels_returns_empty_when_issue_not_found(platform, mock_repo):
+    mock_repo.get_issue.side_effect = Exception("Not found")
+
+    labels = platform.get_labels(999)
+    assert labels == []

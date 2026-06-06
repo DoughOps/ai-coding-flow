@@ -128,3 +128,100 @@ def test_gitlab_non_issue_event_is_ignored(client):
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ignored"
+
+
+GITHUB_AGENT_LABELED = {
+    "action": "labeled",
+    "label": {"name": "agent: opencode"},
+    "issue": {"number": 42, "title": "Fix bug", "body": "There is a bug"},
+}
+
+GITHUB_NON_AGENT_LABELED = {
+    "action": "labeled",
+    "label": {"name": "bug"},
+    "issue": {"number": 42, "title": "Fix bug", "body": "There is a bug"},
+}
+
+GITLAB_LABEL_UPDATED = {
+    "object_kind": "issue",
+    "object_attributes": {
+        "iid": 7,
+        "title": "Fix bug",
+        "description": "There is a bug",
+        "action": "update",
+    },
+    "changes": {
+        "labels": {
+            "previous": [],
+            "current": [{"id": 1, "title": "agent: opencode"}],
+        }
+    },
+}
+
+GITLAB_NON_AGENT_LABEL_UPDATED = {
+    "object_kind": "issue",
+    "object_attributes": {
+        "iid": 7,
+        "title": "Fix bug",
+        "description": "There is a bug",
+        "action": "update",
+    },
+    "changes": {
+        "labels": {
+            "previous": [],
+            "current": [{"id": 2, "title": "priority: high"}],
+        }
+    },
+}
+
+
+def test_github_agent_label_added_queues_job(client):
+    body = json.dumps(GITHUB_AGENT_LABELED).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/github",
+            content=body,
+            headers={"X-Hub-Signature-256": _sign(body), "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "queued"
+    mock_enqueue.assert_called_once()
+
+
+def test_github_non_agent_label_added_is_ignored(client):
+    body = json.dumps(GITHUB_NON_AGENT_LABELED).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/github",
+            content=body,
+            headers={"X-Hub-Signature-256": _sign(body), "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ignored"
+    mock_enqueue.assert_not_called()
+
+
+def test_gitlab_agent_label_added_queues_job(client):
+    body = json.dumps(GITLAB_LABEL_UPDATED).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/gitlab",
+            content=body,
+            headers={"X-Gitlab-Token": SECRET, "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "queued"
+    mock_enqueue.assert_called_once()
+
+
+def test_gitlab_non_agent_label_update_is_ignored(client):
+    body = json.dumps(GITLAB_NON_AGENT_LABEL_UPDATED).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/gitlab",
+            content=body,
+            headers={"X-Gitlab-Token": SECRET, "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ignored"
+    mock_enqueue.assert_not_called()

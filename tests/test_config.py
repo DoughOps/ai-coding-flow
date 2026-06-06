@@ -46,3 +46,30 @@ def test_missing_webhook_secret_raises(monkeypatch):
     with pytest.raises(ValidationError):
         from config import Settings
         Settings(_env_file=None)
+
+
+def test_default_agent_defaults_to_aider():
+    from config import Settings
+    s = Settings(
+        platform="github",
+        repo_url="https://github.com/owner/repo",
+        github_token="ghp_test",
+        webhook_secret="secret",
+        openai_api_base="http://localhost/v1",
+        _env_file=None,
+    )
+    assert s.default_agent == "aider"
+
+
+def test_default_agent_can_be_set():
+    from config import Settings
+    s = Settings(
+        platform="github",
+        repo_url="https://github.com/owner/repo",
+        github_token="ghp_test",
+        webhook_secret="secret",
+        openai_api_base="http://localhost/v1",
+        default_agent="opencode",
+        _env_file=None,
+    )
+    assert s.default_agent == "opencode"

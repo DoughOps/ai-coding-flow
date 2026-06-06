@@ -7,6 +7,8 @@ from config import Settings
 from agent import run_agent, push_branch, get_diff
 from reviewer import run_review
 from platforms import create_platform
+from engines import get_engine
+from engines.base import AgentEngine
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +65,22 @@ def _swap_label(platform, issue_number: int, remove: str, add: str) -> None:
         logger.exception("Failed to update labels on issue #%d", issue_number)
 
 
+def _pick_engine(labels: list[str], settings: Settings) -> AgentEngine:
+    for label in labels:
+        if label.startswith("agent: "):
+            engine_name = label[len("agent: "):]
+            return get_engine(engine_name)
+    return get_engine(settings.default_agent)
+
+
 async def _process_job(job: Job, settings: Settings) -> None:
     platform = create_platform(settings)
     branch = f"ai/issue-{job.issue_number}-{_slugify(job.title)}"
     logger.info("Processing issue #%d on branch %s", job.issue_number, branch)
+
+    labels = platform.get_labels(job.issue_number)
+    engine = _pick_engine(labels, settings)
+    logger.info("Using engine %r for issue #%d", engine.name, job.issue_number)
 
     platform.set_label(job.issue_number, _LABEL_PROCESSING)
 
@@ -77,6 +91,7 @@ async def _process_job(job: Job, settings: Settings) -> None:
         issue_body=job.body,
         branch=branch,
         settings=settings,
+        engine=engine,
     )
 
     if not success:

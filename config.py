@@ -14,5 +14,6 @@ class Settings(BaseSettings):
     max_retries: int = 3
     test_cmd: str = ""  # empty = skip testing entirely
     aider_verbose: bool = False  # set true to log all Aider output
+    default_agent: str = "aider"
 
     model_config = {"env_file": ".env"}
