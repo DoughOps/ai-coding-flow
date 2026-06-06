@@ -84,7 +84,7 @@ def test_opencode_engine_run_calls_opencode_binary():
     assert cmd[0] == "opencode"
     assert "--model" in cmd
     assert "gpt-4o" in cmd
-    assert "--message" in cmd
+    assert "--prompt" in cmd
     assert "Fix the login bug" in cmd
     assert output == "Done."
 

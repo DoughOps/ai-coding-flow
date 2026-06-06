@@ -18,8 +18,9 @@ class OpenCodeEngine(AgentEngine):
         result = subprocess.run(
             [
                 "opencode",
+                "run",
                 "--model", settings.openai_model,
-                "--message", prompt,
+                "--prompt", prompt,
             ],
             cwd=str(repo_path),
             env={
