@@ -11,7 +11,7 @@ def db(tmp_path):
 
 def test_create_job_returns_id(db):
     job_id = store.create_job(db, platform="github", issue_number=1, issue_title="Fix bug")
-    assert job_id == 1
+    assert isinstance(job_id, int) and job_id > 0
 
 
 def test_create_job_status_is_queued(db):

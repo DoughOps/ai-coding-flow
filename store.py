@@ -1,5 +1,8 @@
 import sqlite3
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 def init_db(db_path: str) -> None:
@@ -24,7 +27,6 @@ def init_db(db_path: str) -> None:
 def create_job(db_path: str, *, platform: str, issue_number: int, issue_title: str) -> int:
     now = datetime.now(timezone.utc).isoformat()
     with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
         cur = conn.execute(
             "INSERT INTO jobs (platform, issue_number, issue_title, created_at, updated_at)"
             " VALUES (?, ?, ?, ?, ?)",
@@ -43,13 +45,13 @@ def update_job(db_path: str, job_id: int, **fields) -> None:
     cols = ", ".join(f"{k} = ?" for k in updates)
     values = list(updates.values()) + [job_id]
     with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute(f"UPDATE jobs SET {cols} WHERE id = ?", values)
+        result = conn.execute(f"UPDATE jobs SET {cols} WHERE id = ?", values)
+        if result.rowcount == 0:
+            logger.warning("update_job: no row with id=%d", job_id)
 
 
 def list_jobs(db_path: str, limit: int = 100) -> list[dict]:
     with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)
