@@ -1,3 +1,4 @@
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -75,18 +76,43 @@ def test_opencode_engine_name():
     assert OpenCodeEngine().name == "opencode"
 
 
-def test_opencode_engine_run_calls_opencode_binary():
+def test_opencode_engine_run_calls_opencode_binary(tmp_path):
     from engines.opencode import OpenCodeEngine
-    with patch("engines.opencode.subprocess.run") as mock_run:
+    with patch("engines.opencode.subprocess.run") as mock_run, \
+         patch("engines.opencode._write_opencode_config"):
         mock_run.return_value = MagicMock(stdout="Done.", stderr="", returncode=0)
-        output = OpenCodeEngine().run(Path("/tmp/repo"), "Fix the login bug", _mock_settings())
+        output = OpenCodeEngine().run(tmp_path, "Fix the login bug", _mock_settings())
     cmd = mock_run.call_args[0][0]
     assert cmd[0] == "opencode"
-    assert cmd[1] == "run"          # subcommand must be present
+    assert cmd[1] == "run"
     assert "--model" in cmd
-    assert "gpt-4o" in cmd
-    assert cmd[-1] == "Fix the login bug"   # prompt is a positional, must be last
+    assert "custom/gpt-4o" in cmd       # model is prefixed with provider ID
+    assert cmd[-1] == "Fix the login bug"   # prompt is positional, must be last
     assert output == "Done."
+
+
+def test_opencode_engine_run_passes_env_vars(tmp_path):
+    from engines.opencode import OpenCodeEngine
+    with patch("engines.opencode.subprocess.run") as mock_run, \
+         patch("engines.opencode._write_opencode_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        OpenCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    env = mock_run.call_args[1]["env"]
+    assert env["OPENAI_API_KEY"] == "local"
+    assert "OPENAI_BASE_URL" not in env     # URL is now in the config file, not env
+
+
+def test_opencode_write_config_creates_provider(tmp_path):
+    from engines.opencode import _write_opencode_config
+    s = _mock_settings()
+    with patch("engines.opencode.Path.home", return_value=tmp_path):
+        _write_opencode_config(s)
+    config_file = tmp_path / ".config" / "opencode" / "opencode.jsonc"
+    assert config_file.exists()
+    config = json.loads(config_file.read_text())
+    provider = config["provider"]["custom"]
+    assert provider["options"]["baseURL"] == "http://localhost:11434/v1"
+    assert "gpt-4o" in provider["models"]
 
 
 @pytest.mark.skipif(
@@ -94,25 +120,11 @@ def test_opencode_engine_run_calls_opencode_binary():
     reason="opencode binary not installed",
 )
 def test_opencode_binary_accepts_run_help():
-    """Integration test: verify 'opencode run --help' exits 0 with expected output."""
+    """Integration: verify 'opencode run --help' exits cleanly."""
     import subprocess
-    result = subprocess.run(
-        ["opencode", "run", "--help"],
-        capture_output=True, text=True,
-    )
+    result = subprocess.run(["opencode", "run", "--help"], capture_output=True, text=True)
     assert result.returncode == 0, f"opencode run --help exited {result.returncode}"
-    output = result.stdout + result.stderr
-    assert "message" in output.lower(), "expected 'message' in opencode run --help output"
-
-
-def test_opencode_engine_run_passes_env_vars():
-    from engines.opencode import OpenCodeEngine
-    with patch("engines.opencode.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
-        OpenCodeEngine().run(Path("/tmp/repo"), "prompt", _mock_settings())
-    env = mock_run.call_args[1]["env"]
-    assert env["OPENAI_BASE_URL"] == "http://localhost:11434/v1"
-    assert env["OPENAI_API_KEY"] == "local"
+    assert "message" in (result.stdout + result.stderr).lower()
 
 
 def test_get_engine_returns_aider_by_default():
