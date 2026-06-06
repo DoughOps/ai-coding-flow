@@ -97,22 +97,24 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
             if payload.get("sender", {}).get("type", "") != "Bot":
                 pr_api_url = issue["pull_request"].get("url", "")
                 try:
-                    branch = _get_github_pr_branch(pr_api_url, settings.github_token)
+                    branch = await asyncio.to_thread(_get_github_pr_branch, pr_api_url, settings.github_token)
                 except Exception:
                     logger.warning("Could not fetch PR branch from %s", pr_api_url)
                     return {"status": "ignored"}
                 issue_number = _parse_issue_number_from_branch(branch)
-                if issue_number:
-                    background_tasks.add_task(
-                        enqueue_job,
-                        platform="github",
-                        issue_number=issue_number,
-                        title=issue.get("title", ""),
-                        body=issue.get("body") or "",
-                        pr_branch=branch,
-                        rework_comment=comment_body,
-                    )
-                    return {"status": "queued"}
+                if not issue_number:
+                    logger.warning("Could not parse issue number from branch %r", branch)
+                    return {"status": "ignored"}
+                background_tasks.add_task(
+                    enqueue_job,
+                    platform="github",
+                    issue_number=issue_number,
+                    title=issue.get("title", ""),
+                    body=issue.get("body") or "",
+                    pr_branch=branch,
+                    rework_comment=comment_body,
+                )
+                return {"status": "queued"}
 
     return {"status": "ignored"}
 
@@ -158,17 +160,19 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
             mr = payload.get("merge_request", {})
             branch = mr.get("source_branch", "")
             issue_number = _parse_issue_number_from_branch(branch)
-            if issue_number:
-                background_tasks.add_task(
-                    enqueue_job,
-                    platform="gitlab",
-                    issue_number=issue_number,
-                    title=mr.get("title", ""),
-                    body=mr.get("description") or "",
-                    pr_branch=branch,
-                    rework_comment=note_attrs["note"],
-                )
-                return {"status": "queued"}
+            if not issue_number:
+                logger.warning("Could not parse issue number from branch %r", branch)
+                return {"status": "ignored"}
+            background_tasks.add_task(
+                enqueue_job,
+                platform="gitlab",
+                issue_number=issue_number,
+                title=mr.get("title", ""),
+                body=mr.get("description") or "",
+                pr_branch=branch,
+                rework_comment=note_attrs["note"],
+            )
+            return {"status": "queued"}
 
     return {"status": "ignored"}
 
@@ -193,6 +197,6 @@ def _get_github_pr_branch(pr_api_url: str, token: str) -> str:
             "Accept": "application/vnd.github+json",
         },
     )
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         data = json.loads(resp.read())
     return data.get("head", {}).get("ref", "")
