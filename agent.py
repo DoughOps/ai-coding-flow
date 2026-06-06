@@ -145,7 +145,31 @@ def _run_aider(repo_path: Path, prompt: str, settings: Settings) -> None:
     )
 
 
+_PY_COMPAT_SHIM = '''\
+import pathlib
+import py.path
+_orig_local_init = py.path.local.__init__
+def _patched_local_init(self, path=None, expanduser=False):
+    if isinstance(path, pathlib.Path):
+        path = str(path)
+    _orig_local_init(self, path=path, expanduser=expanduser)
+py.path.local.__init__ = _patched_local_init
+'''
+
+
+def _ensure_py_compat(repo_path: Path) -> None:
+    """Prepend py.path.local shim to conftest.py so pytest 8 + py 1.4 don't crash."""
+    conf = repo_path / "conftest.py"
+    if conf.exists():
+        content = conf.read_text()
+        if "py.path.local.__init__" not in content:
+            conf.write_text(_PY_COMPAT_SHIM + "\n" + content)
+    else:
+        conf.write_text(_PY_COMPAT_SHIM)
+
+
 def _run_tests(repo_path: Path, test_cmd: str) -> tuple[bool, str]:
+    _ensure_py_compat(repo_path)
     result = subprocess.run(
         shlex.split(test_cmd),
         cwd=str(repo_path),
