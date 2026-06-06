@@ -20,6 +20,7 @@ def run_agent(
     branch: str,
     settings: Settings,
     engine: AgentEngine,
+    start_ref: str = "",
 ) -> tuple[bool, str, str, str]:
     """
     Clone repo, run engine, retry on test failure.
@@ -27,7 +28,7 @@ def run_agent(
     Synchronous — caller must use asyncio.to_thread.
     """
     repo_path = WORK_DIR / str(issue_number)
-    _prepare_repo(repo_path, branch, settings)
+    _prepare_repo(repo_path, branch, settings, start_ref=start_ref)
     _configure_git_user(repo_path)
     initial_commit = _git_head(repo_path)
 
@@ -59,16 +60,16 @@ def run_agent(
     return False, str(repo_path), initial_commit, error_msg
 
 
-def push_branch(repo_path: str, branch: str, settings: Settings) -> None:
+def push_branch(repo_path: str, branch: str, settings: Settings, force: bool = False) -> None:
     auth_url = _authenticated_url(settings)
     subprocess.run(
         ["git", "remote", "set-url", "origin", auth_url],
         cwd=repo_path, check=True, capture_output=True,
     )
-    subprocess.run(
-        ["git", "push", "-u", "origin", branch],
-        cwd=repo_path, check=True, capture_output=True,
-    )
+    cmd = ["git", "push", "-u", "origin", branch]
+    if force:
+        cmd.append("--force-with-lease")
+    subprocess.run(cmd, cwd=repo_path, check=True, capture_output=True)
 
 
 def get_diff(repo_path: str, initial_commit: str) -> str:
@@ -79,24 +80,30 @@ def get_diff(repo_path: str, initial_commit: str) -> str:
     return result.stdout[:15000]
 
 
-def _prepare_repo(repo_path: Path, branch: str, settings: Settings) -> None:
+def _prepare_repo(repo_path: Path, branch: str, settings: Settings, start_ref: str = "") -> None:
     auth_url = _authenticated_url(settings)
     if (repo_path / ".git").exists():
         subprocess.run(["git", "fetch", "origin"], cwd=repo_path, check=True, capture_output=True)
-        result = subprocess.run(
-            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
-            cwd=repo_path, capture_output=True, text=True,
-        )
-        default = result.stdout.strip().split("/")[-1] if result.returncode == 0 else "main"
-        subprocess.run(["git", "checkout", default], cwd=repo_path, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "reset", "--hard", f"origin/{default}"],
-            cwd=repo_path, check=True, capture_output=True,
-        )
+        if not start_ref:
+            result = subprocess.run(
+                ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+                cwd=repo_path, capture_output=True, text=True,
+            )
+            default = result.stdout.strip().split("/")[-1] if result.returncode == 0 else "main"
+            subprocess.run(["git", "checkout", default], cwd=repo_path, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "reset", "--hard", f"origin/{default}"],
+                cwd=repo_path, check=True, capture_output=True,
+            )
     else:
         repo_path.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "clone", auth_url, str(repo_path)], check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "-B", branch], cwd=repo_path, check=True, capture_output=True)
+        if start_ref:
+            subprocess.run(["git", "fetch", "origin"], cwd=repo_path, check=True, capture_output=True)
+    checkout_cmd = ["git", "checkout", "-B", branch]
+    if start_ref:
+        checkout_cmd.append(start_ref)
+    subprocess.run(checkout_cmd, cwd=repo_path, check=True, capture_output=True)
 
 
 def _configure_git_user(repo_path: Path) -> None:

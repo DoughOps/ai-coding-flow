@@ -77,3 +77,70 @@ def test_run_agent_uses_provided_engine():
 
     assert success is True
     mock_engine.run.assert_called_once()
+
+
+def test_push_branch_includes_force_with_lease_when_force_true():
+    from unittest.mock import patch
+    from agent import push_branch
+
+    settings = MagicMock()
+    settings.platform = "github"
+    settings.github_token = "tok"
+    settings.repo_url = "https://github.com/owner/repo"
+
+    with patch("agent.subprocess.run") as mock_run:
+        push_branch("/repo", "ai/issue-1-test", settings, force=True)
+
+    push_cmd = mock_run.call_args_list[1][0][0]
+    assert "--force-with-lease" in push_cmd
+
+
+def test_push_branch_no_force_flag_by_default():
+    from unittest.mock import patch
+    from agent import push_branch
+
+    settings = MagicMock()
+    settings.platform = "github"
+    settings.github_token = "tok"
+    settings.repo_url = "https://github.com/owner/repo"
+
+    with patch("agent.subprocess.run") as mock_run:
+        push_branch("/repo", "ai/issue-1-test", settings)
+
+    push_cmd = mock_run.call_args_list[1][0][0]
+    assert "--force-with-lease" not in push_cmd
+
+
+def test_run_agent_accepts_start_ref():
+    from unittest.mock import MagicMock, patch
+    from agent import run_agent
+
+    mock_engine = MagicMock()
+    mock_engine.run.return_value = "output"
+
+    settings = MagicMock()
+    settings.test_cmd = ""
+    settings.max_retries = 3
+    settings.repo_url = "https://github.com/owner/repo"
+    settings.platform = "github"
+    settings.github_token = "ghp_test"
+
+    captured = {}
+
+    def fake_prepare(repo_path, branch, settings, start_ref=""):
+        captured["start_ref"] = start_ref
+
+    with patch("agent._prepare_repo", side_effect=fake_prepare), \
+         patch("agent._configure_git_user"), \
+         patch("agent._git_head", return_value="abc123"):
+        run_agent(
+            issue_number=1,
+            issue_title="Test",
+            issue_body="Body",
+            branch="ai/issue-1-test",
+            settings=settings,
+            engine=mock_engine,
+            start_ref="origin/ai/issue-1-test",
+        )
+
+    assert captured["start_ref"] == "origin/ai/issue-1-test"
