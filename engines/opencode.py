@@ -20,7 +20,7 @@ class OpenCodeEngine(AgentEngine):
                 "opencode",
                 "run",
                 "--model", settings.openai_model,
-                "--prompt", prompt,
+                prompt,
             ],
             cwd=str(repo_path),
             env={
