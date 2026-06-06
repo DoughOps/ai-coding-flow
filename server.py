@@ -1,12 +1,16 @@
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
+import re
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import store
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
@@ -18,6 +22,7 @@ settings = Settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    store.init_db(settings.db_path)
     task = asyncio.create_task(start_worker(settings))
     yield
     task.cancel()
@@ -41,6 +46,15 @@ async def health():
 @app.get("/")
 async def root():
     return RedirectResponse(url="/guide")
+
+
+@app.get("/api/jobs")
+async def api_jobs(request: Request):
+    if settings.admin_password:
+        token = request.headers.get("X-Admin-Token", "")
+        if not hmac.compare_digest(token, settings.admin_password):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    return store.list_jobs(settings.db_path)
 
 
 @app.post("/webhook/github")
@@ -75,6 +89,30 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
                 body=issue.get("body") or "",
             )
             return {"status": "queued"}
+
+    if action == "created" and "comment" in payload and "issue" in payload:
+        issue = payload["issue"]
+        comment_body = payload["comment"].get("body", "")
+        if issue.get("pull_request") and "/rework" in comment_body:
+            if payload.get("sender", {}).get("type", "") != "Bot":
+                pr_api_url = issue["pull_request"].get("url", "")
+                try:
+                    branch = _get_github_pr_branch(pr_api_url, settings.github_token)
+                except Exception:
+                    logger.warning("Could not fetch PR branch from %s", pr_api_url)
+                    return {"status": "ignored"}
+                issue_number = _parse_issue_number_from_branch(branch)
+                if issue_number:
+                    background_tasks.add_task(
+                        enqueue_job,
+                        platform="github",
+                        issue_number=issue_number,
+                        title=issue.get("title", ""),
+                        body=issue.get("body") or "",
+                        pr_branch=branch,
+                        rework_comment=comment_body,
+                    )
+                    return {"status": "queued"}
 
     return {"status": "ignored"}
 
@@ -113,6 +151,25 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
             )
             return {"status": "queued"}
 
+    if payload.get("object_kind") == "note":
+        note_attrs = payload.get("object_attributes", {})
+        if (note_attrs.get("noteable_type") == "MergeRequest"
+                and "/rework" in note_attrs.get("note", "")):
+            mr = payload.get("merge_request", {})
+            branch = mr.get("source_branch", "")
+            issue_number = _parse_issue_number_from_branch(branch)
+            if issue_number:
+                background_tasks.add_task(
+                    enqueue_job,
+                    platform="gitlab",
+                    issue_number=issue_number,
+                    title=mr.get("title", ""),
+                    body=mr.get("description") or "",
+                    pr_branch=branch,
+                    rework_comment=note_attrs["note"],
+                )
+                return {"status": "queued"}
+
     return {"status": "ignored"}
 
 
@@ -121,3 +178,21 @@ def _verify_github_signature(body: bytes, signature: str, secret: str) -> None:
     expected = f"sha256={mac.hexdigest()}"
     if not hmac.compare_digest(expected, signature):
         raise HTTPException(status_code=403, detail="Invalid signature")
+
+
+def _parse_issue_number_from_branch(branch: str) -> int | None:
+    m = re.search(r"ai/issue-(\d+)-", branch)
+    return int(m.group(1)) if m else None
+
+
+def _get_github_pr_branch(pr_api_url: str, token: str) -> str:
+    req = urllib.request.Request(
+        pr_api_url,
+        headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        data = json.loads(resp.read())
+    return data.get("head", {}).get("ref", "")
