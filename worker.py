@@ -175,7 +175,7 @@ async def _process_job(job: Job, settings: Settings) -> None:
         )
         return
 
-    await asyncio.to_thread(push_branch, repo_path, branch, settings)
+    await asyncio.to_thread(push_branch, repo_path, branch, settings, force=True)
 
     pr_title = f"fix: {job.title} (resolves #{job.issue_number})"
     pr_body = (
