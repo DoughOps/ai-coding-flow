@@ -1,0 +1,36 @@
+import gitlab
+from urllib.parse import urlparse
+from .base import GitPlatform, Issue
+
+
+class GitLabPlatform(GitPlatform):
+    def __init__(self, token: str, repo_url: str) -> None:
+        parsed = urlparse(repo_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        self._gl = gitlab.Gitlab(base_url, private_token=token)
+        project_path = parsed.path.lstrip("/").rstrip(".git")
+        self._project = self._gl.projects.get(project_path)
+
+    def get_issue(self, number: int) -> Issue:
+        issues = self._project.issues.list(iid=number)
+        gl_issue = issues[0]
+        return Issue(
+            number=gl_issue.iid,
+            title=gl_issue.title,
+            body=gl_issue.description or "",
+            url=gl_issue.web_url,
+        )
+
+    def create_pr(self, branch: str, title: str, body: str) -> str:
+        mr = self._project.mergerequests.create({
+            "source_branch": branch,
+            "target_branch": self._project.default_branch,
+            "title": title,
+            "description": body,
+        })
+        return mr.web_url
+
+    def post_comment(self, issue_number: int, body: str) -> None:
+        issues = self._project.issues.list(iid=issue_number)
+        gl_issue = issues[0]
+        gl_issue.notes.create({"body": body})
