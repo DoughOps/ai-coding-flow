@@ -37,6 +37,8 @@ async def start_worker(settings: Settings) -> None:
             logger.exception("Unhandled error for issue #%d", job.issue_number)
             try:
                 platform = create_platform(settings)
+                platform.remove_label(job.issue_number, _LABEL_PROCESSING)
+                platform.set_label(job.issue_number, _LABEL_FAILED)
                 platform.post_comment(
                     job.issue_number,
                     f"AI workflow encountered an unexpected error: {exc}",
@@ -47,16 +49,26 @@ async def start_worker(settings: Settings) -> None:
             _queue.task_done()
 
 
+_LABEL_PROCESSING = "ai: processing"
+_LABEL_DONE = "ai: done"
+_LABEL_FAILED = "ai: failed"
+_LABEL_NEEDS_CLARIFICATION = "ai: needs clarification"
+
+
+def _swap_label(platform, issue_number: int, remove: str, add: str) -> None:
+    try:
+        platform.remove_label(issue_number, remove)
+        platform.set_label(issue_number, add)
+    except Exception:
+        logger.exception("Failed to update labels on issue #%d", issue_number)
+
+
 async def _process_job(job: Job, settings: Settings) -> None:
     platform = create_platform(settings)
     branch = f"ai/issue-{job.issue_number}-{_slugify(job.title)}"
     logger.info("Processing issue #%d on branch %s", job.issue_number, branch)
 
-    platform.post_comment(
-        job.issue_number,
-        f"**AI coding workflow started**\n\nWorking on branch `{branch}`. "
-        f"Cloning repo and running AI agent — this may take a few minutes.",
-    )
+    platform.set_label(job.issue_number, _LABEL_PROCESSING)
 
     success, repo_path, initial_commit, error_msg = await asyncio.to_thread(
         run_agent,
@@ -68,28 +80,22 @@ async def _process_job(job: Job, settings: Settings) -> None:
     )
 
     if not success:
+        _swap_label(platform, job.issue_number, _LABEL_PROCESSING, _LABEL_FAILED)
         platform.post_comment(
             job.issue_number,
-            f"**AI coding workflow failed**\n\n"
-            f"Could not produce passing tests after {settings.max_retries} attempts.\n\n"
+            f"AI could not produce passing tests after {settings.max_retries} attempts.\n\n"
             f"Last test output:\n```\n{error_msg}\n```",
         )
         return
 
     diff = get_diff(repo_path, initial_commit)
     if not diff.strip():
+        _swap_label(platform, job.issue_number, _LABEL_PROCESSING, _LABEL_NEEDS_CLARIFICATION)
         platform.post_comment(
             job.issue_number,
-            "**AI coding workflow completed — no changes made**\n\n"
-            "The AI processed this issue but made no code changes. "
-            "Please add more detail or a concrete example to the issue description.",
+            "AI made no code changes. Please add more detail or a concrete example to the issue description.",
         )
         return
-
-    platform.post_comment(
-        job.issue_number,
-        "**AI coding workflow — changes ready**\n\nCode changes complete. Pushing branch and creating PR...",
-    )
 
     await asyncio.to_thread(push_branch, repo_path, branch, settings)
 
@@ -101,11 +107,6 @@ async def _process_job(job: Job, settings: Settings) -> None:
     pr_url = platform.create_pr(branch, pr_title, pr_body)
     logger.info("Created PR/MR: %s", pr_url)
 
-    platform.post_comment(
-        job.issue_number,
-        f"**PR created:** {pr_url}\n\nRunning AI code review...",
-    )
-
     review_comment = await asyncio.to_thread(
         run_review,
         issue_title=job.title,
@@ -113,9 +114,11 @@ async def _process_job(job: Job, settings: Settings) -> None:
         diff=diff,
         settings=settings,
     )
+
+    _swap_label(platform, job.issue_number, _LABEL_PROCESSING, _LABEL_DONE)
     platform.post_comment(
         job.issue_number,
-        f"**AI code review complete**\n\n{review_comment}",
+        f"PR: {pr_url}\n\n**Review:**\n\n{review_comment}",
     )
     logger.info("Posted review comment for issue #%d", job.issue_number)
 

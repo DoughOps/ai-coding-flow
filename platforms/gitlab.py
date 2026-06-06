@@ -38,3 +38,23 @@ class GitLabPlatform(GitPlatform):
             raise ValueError(f"Issue #{issue_number} not found")
         gl_issue = issues[0]
         gl_issue.notes.create({"body": body})
+
+    def set_label(self, issue_number: int, label: str) -> None:
+        issues = self._project.issues.list(iid=issue_number)
+        if not issues:
+            return
+        gl_issue = issues[0]
+        labels = list(gl_issue.labels or [])
+        if label not in labels:
+            labels.append(label)
+            gl_issue.labels = labels
+            gl_issue.save()
+
+    def remove_label(self, issue_number: int, label: str) -> None:
+        issues = self._project.issues.list(iid=issue_number)
+        if not issues:
+            return
+        gl_issue = issues[0]
+        labels = [l for l in (gl_issue.labels or []) if l != label]
+        gl_issue.labels = labels
+        gl_issue.save()

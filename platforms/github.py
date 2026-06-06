@@ -29,3 +29,16 @@ class GitHubPlatform(GitPlatform):
     def post_comment(self, issue_number: int, body: str) -> None:
         issue = self._repo.get_issue(issue_number)
         issue.create_comment(body)
+
+    def set_label(self, issue_number: int, label: str) -> None:
+        try:
+            self._repo.get_label(label)
+        except Exception:
+            self._repo.create_label(label, "ededed")
+        self._repo.get_issue(issue_number).add_to_labels(label)
+
+    def remove_label(self, issue_number: int, label: str) -> None:
+        try:
+            self._repo.get_issue(issue_number).remove_from_labels(label)
+        except Exception:
+            pass
