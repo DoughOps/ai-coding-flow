@@ -903,6 +903,10 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
               <td><span class="label-pill label-purple">agent: opencode</span></td>
               <td>Use the <a href="#" data-section="engines">OpenCode engine</a> for this issue</td>
             </tr>
+            <tr>
+              <td><span class="label-pill label-blue">agent: claudecode</span></td>
+              <td>Use the <a href="#" data-section="engines">Claude Code engine</a> (via claude-code-router) for this issue</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1072,8 +1076,21 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
         </table>
       </div>
 
+      <h4>Claude Code</h4>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td><strong>Label</strong></td><td><span class="label-pill label-blue">agent: claudecode</span></td></tr>
+            <tr><td><strong>Binaries</strong></td><td><code>claude</code> (Claude Code CLI) + <code>ccr</code> (claude-code-router)</td></tr>
+            <tr><td><strong>LLM config</strong></td><td>Writes <code>~/.claude-code-router/config.json</code> routing to your <code>OPENAI_API_BASE</code> endpoint via <code>@musistudio/claude-code-router</code></td></tr>
+            <tr><td><strong>Flags</strong></td><td><code>claude -p &lt;prompt&gt; --dangerously-skip-permissions</code> with <code>ANTHROPIC_BASE_URL=http://127.0.0.1:3456</code></td></tr>
+            <tr><td><strong>Why a router?</strong></td><td>Claude Code only speaks the Anthropic API; the router translates to OpenAI-compatible format so any endpoint works</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="callout callout-info">
-        <p><strong>Note:</strong> OpenCode uses a config file (<code>~/.config/opencode/opencode.jsonc</code>) that is written automatically from your <code>OPENAI_API_BASE</code> setting before each run. Aider reads <code>OPENAI_API_BASE</code> directly from the environment.</p>
+        <p><strong>Note:</strong> OpenCode and Claude Code both use config files written before each run. Aider reads <code>OPENAI_API_BASE</code> directly from the environment. All three share the same <code>OPENAI_API_BASE</code>, <code>OPENAI_API_KEY</code>, and <code>OPENAI_MODEL</code> settings.</p>
       </div>
 
       <h3>AgentEngine ABC</h3>
@@ -1392,6 +1409,11 @@ gh issue edit 42 --add-label "agent: opencode"</code></pre>
               <td><span class="label-pill label-purple">agent: opencode</span></td>
               <td><strong>OpenCode</strong></td>
               <td>Interactive tool-use, good at exploratory multi-file changes and investigative tasks.</td>
+            </tr>
+            <tr>
+              <td><span class="label-pill label-blue">agent: claudecode</span></td>
+              <td><strong>Claude Code</strong></td>
+              <td>Anthropic's Claude Code CLI routed through any OpenAI-compatible endpoint via claude-code-router.</td>
             </tr>
           </tbody>
         </table>

@@ -2,12 +2,14 @@ import logging
 
 from engines.base import AgentEngine
 from engines.aider import AiderEngine
+from engines.claudecode import ClaudeCodeEngine
 from engines.opencode import OpenCodeEngine
 
 logger = logging.getLogger(__name__)
 
 _ENGINES: dict[str, type[AgentEngine]] = {
     "aider": AiderEngine,
+    "claudecode": ClaudeCodeEngine,
     "opencode": OpenCodeEngine,
 }
 

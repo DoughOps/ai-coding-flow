@@ -161,3 +161,119 @@ def test_get_engine_unknown_name_falls_back_to_aider():
     from engines import get_engine
     from engines.aider import AiderEngine
     assert isinstance(get_engine("some-unknown-engine"), AiderEngine)
+
+
+# ── ClaudeCodeEngine ──────────────────────────────────────────────────────────
+
+def test_claudecode_engine_name():
+    from engines.claudecode import ClaudeCodeEngine
+    assert ClaudeCodeEngine().name == "claudecode"
+
+
+def test_claudecode_engine_run_calls_claude_binary(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="Done.", stderr="", returncode=0)
+        output = ClaudeCodeEngine().run(tmp_path, "Fix the login bug", _mock_settings())
+    cmd = mock_run.call_args_list[0][0][0]
+    assert cmd[0] == "claude"
+    assert "-p" in cmd
+    assert "Fix the login bug" in cmd
+    assert output == "Done."
+
+
+def test_claudecode_engine_run_starts_router(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    cmd = mock_popen.call_args[0][0]
+    assert cmd[0] == "ccr"
+    assert cmd[1] == "start"
+
+
+def test_claudecode_engine_skips_router_start_if_already_running(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=True), \
+         patch("engines.claudecode._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    mock_popen.assert_not_called()
+
+
+def test_claudecode_engine_run_sets_env_vars(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    env = mock_run.call_args_list[0][1]["env"]
+    assert env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:3456"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "local"
+
+
+def test_claudecode_engine_commits_changes_after_run(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    calls = []
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return MagicMock(stdout="", stderr="", returncode=0)
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run", side_effect=fake_run), \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_popen.return_value = MagicMock()
+        ClaudeCodeEngine().run(tmp_path, "fix it", _mock_settings())
+    cmds = [" ".join(c) for c in calls]
+    assert any("git add" in c for c in cmds)
+    assert any("git commit" in c for c in cmds)
+
+
+def test_claudecode_write_config_creates_provider(tmp_path):
+    from engines.claudecode import _write_router_config
+    s = _mock_settings()
+    with patch("engines.claudecode.Path.home", return_value=tmp_path):
+        _write_router_config(s)
+    config_file = tmp_path / ".claude-code-router" / "config.json"
+    assert config_file.exists()
+    config = json.loads(config_file.read_text())
+    provider = config["Providers"][0]
+    assert provider["api_base_url"] == "http://localhost:11434/v1/chat/completions"
+    assert "gpt-4o" in provider["models"]
+    assert config["Router"]["default"] == "custom,gpt-4o"
+
+
+def test_get_engine_returns_claudecode():
+    from engines import get_engine
+    from engines.claudecode import ClaudeCodeEngine
+    assert isinstance(get_engine("claudecode"), ClaudeCodeEngine)
+
+
+@pytest.mark.skipif(
+    __import__("shutil").which("claude") is None,
+    reason="claude binary not installed",
+)
+def test_claude_binary_accepts_help():
+    """Integration: verify 'claude --help' exits cleanly."""
+    import subprocess
+    result = subprocess.run(["claude", "--help"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "print" in (result.stdout + result.stderr).lower()
