@@ -11,3 +11,7 @@ pytest>=7.0.0
 pytest-asyncio>=0.21.0
 audioop-lts
 aider-install
+# CVE-2026-42284: GitPython argument injection RCE (fix: >=3.1.47)
+gitpython>=3.1.47
+# CVE-2026-35030: LiteLLM JWT cache key collision auth bypass (fix: >=1.83.0)
+litellm>=1.83.0
