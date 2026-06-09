@@ -764,8 +764,6 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
         <table>
           <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>PLATFORM</code></td><td>✅</td><td>—</td><td><code>github</code> or <code>gitlab</code></td></tr>
-            <tr><td><code>REPO_URL</code></td><td>✅</td><td>—</td><td>Full URL of the target repository</td></tr>
             <tr><td><code>GITHUB_TOKEN</code></td><td>if GitHub</td><td><code>""</code></td><td>Personal access token or GitHub App token</td></tr>
             <tr><td><code>GITLAB_TOKEN</code></td><td>if GitLab</td><td><code>""</code></td><td>Project access token with <code>api</code> scope</td></tr>
             <tr><td><code>WEBHOOK_SECRET</code></td><td>✅</td><td>—</td><td>Secret used to verify incoming webhook payloads</td></tr>
@@ -846,8 +844,6 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
 
       <h3>Example <code>.env</code></h3>
       <pre><div class="lang-tag">.env</div><code><span class="cmt"># Platform</span>
-PLATFORM=github
-REPO_URL=https://github.com/your-org/your-repo
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 WEBHOOK_SECRET=a-strong-random-secret
 VERBOSE=false
@@ -1261,7 +1257,7 @@ get_engine(<span class="str">"unknown"</span>)  <span class="cmt"># → OpenCode
             <tr><td><strong>Auth</strong></td><td>Project or personal access token in <code>GITLAB_TOKEN</code></td></tr>
             <tr><td><strong>Labels</strong></td><td>Labels must exist on the project before they can be applied</td></tr>
             <tr><td><strong>Webhook verification</strong></td><td>Shared secret via <code>X-Gitlab-Token</code></td></tr>
-            <tr><td><strong>Self-hosted</strong></td><td>Set <code>REPO_URL</code> to your self-hosted GitLab URL</td></tr>
+            <tr><td><strong>Self-hosted</strong></td><td>Configure your GitLab instance URL in the webhook payload</td></tr>
           </tbody>
         </table>
       </div>

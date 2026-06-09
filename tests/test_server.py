@@ -424,3 +424,39 @@ def test_api_jobs_correct_token_returns_200(monkeypatch):
         resp = c.get("/api/jobs", headers={"X-Admin-Token": "secret123"})
     assert resp.status_code == 200
     assert resp.json()[0]["status"] == "done"
+
+
+def test_github_webhook_missing_repo_url_is_ignored(client):
+    payload = {
+        "action": "opened",
+        "issue": {"number": 1, "title": "T", "body": "B"},
+        # no "repository" key
+    }
+    body = json.dumps(payload).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/github",
+            content=body,
+            headers={"X-Hub-Signature-256": _sign(body), "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ignored"
+    mock_enqueue.assert_not_called()
+
+
+def test_gitlab_webhook_missing_repo_url_is_ignored(client):
+    payload = {
+        "object_kind": "issue",
+        "object_attributes": {"iid": 1, "title": "T", "description": "B", "action": "open"},
+        # no "project" key
+    }
+    body = json.dumps(payload).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/gitlab",
+            content=body,
+            headers={"X-Gitlab-Token": SECRET, "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ignored"
+    mock_enqueue.assert_not_called()

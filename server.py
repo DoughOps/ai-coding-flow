@@ -68,6 +68,10 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     action = payload.get("action")
     repo_url = payload.get("repository", {}).get("clone_url", "")
 
+    if not repo_url:
+        logger.warning("GitHub webhook missing repository.clone_url — ignoring")
+        return {"status": "ignored"}
+
     if action == "opened" and "issue" in payload:
         issue = payload["issue"]
         background_tasks.add_task(
@@ -143,6 +147,10 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
     attrs = payload.get("object_attributes", {})
     repo_url = payload.get("project", {}).get("http_url_to_repo", "")
+
+    if not repo_url:
+        logger.warning("GitLab webhook missing project.http_url_to_repo — ignoring")
+        return {"status": "ignored"}
 
     if payload.get("object_kind") == "issue" and attrs.get("action") == "open":
         background_tasks.add_task(
