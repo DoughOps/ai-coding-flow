@@ -295,6 +295,11 @@
       const resp = await fetch(`/api/jobs?limit=${PAGE_SIZE}&offset=${currentOffset}`, {
         headers: getToken() ? { 'X-Admin-Token': getToken() } : {},
       });
+      if (resp.status === 401) {
+        sessionStorage.removeItem('adminToken');
+        document.getElementById('authDialog').showModal();
+        return;
+      }
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const jobs = await resp.json();
       allJobs = allJobs.concat(jobs);
