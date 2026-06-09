@@ -84,6 +84,10 @@
   dialog button { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
   .btn-primary { background: var(--accent); color: var(--accent-fg); border: none; }
   .btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); }
+  .stats-bar { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+  .stats-bar strong { color: var(--text); }
+  .repo-cell { font-size: 12px; color: var(--text-muted); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr.job-row { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -93,6 +97,7 @@
   <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
 </header>
 <main>
+  <div id="statsBar" class="stats-bar"></div>
   <div class="toolbar">
     <span id="statusLine">Loading…</span>
     <button class="refresh-btn" onclick="loadJobs()">Refresh</button>
@@ -139,11 +144,37 @@
     if (e.key === 'Enter') submitPassword();
   });
 
-  // ── data ──────────────────────────────────────────────────────────────────
+  // ── state ─────────────────────────────────────────────────────────────────
+  const PAGE_SIZE = 50;
+  let allJobs = [];
+  let currentOffset = 0;
+
+  // ── helpers ───────────────────────────────────────────────────────────────
   function formatDate(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
     return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function _repoSlug(url) {
+    try { return new URL(url).pathname.replace(/^\//, '').replace(/\.git$/, ''); }
+    catch { return url || '—'; }
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── render ────────────────────────────────────────────────────────────────
+  function renderStats() {
+    const running = allJobs.filter(j => j.status === 'processing' || j.status === 'reworking').length;
+    const done    = allJobs.filter(j => j.status === 'done').length;
+    const failed  = allJobs.filter(j => j.status === 'failed').length;
+    document.getElementById('statsBar').innerHTML =
+      `Total: <strong>${allJobs.length}</strong> &nbsp;·&nbsp; ` +
+      `Running: <strong>${running}</strong> &nbsp;·&nbsp; ` +
+      `Done: <strong>${done}</strong> &nbsp;·&nbsp; ` +
+      `Failed: <strong>${failed}</strong>`;
   }
 
   function renderTable(jobs) {
@@ -153,32 +184,33 @@
       return;
     }
     const rows = jobs.map(j => `
-      <tr>
-        <td><span class="badge badge-${j.status}">${j.status.replace('_', ' ')}</span></td>
+      <tr class="job-row" onclick="openModal(${j.id})">
+        <td><span class="badge badge-${j.status}">${j.status.replace(/_/g,' ')}</span></td>
         <td>
           <div class="issue-title">${escHtml(j.issue_title)}</div>
           <div class="issue-num">${escHtml(j.platform)} #${j.issue_number}</div>
         </td>
+        <td class="repo-cell">${escHtml(_repoSlug(j.repo_url))}</td>
         <td>${j.engine ? escHtml(j.engine) : '—'}</td>
         <td>${formatDate(j.created_at)}</td>
-        <td>${j.pr_url ? `<a class="pr-link" href="${escHtml(j.pr_url)}" target="_blank" rel="noopener">PR ↗</a>` : '—'}</td>
+        <td>${j.pr_url ? `<a class="pr-link" href="${escHtml(j.pr_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR ↗</a>` : '—'}</td>
       </tr>`).join('');
     wrap.innerHTML = `
       <table>
-        <thead><tr><th>Status</th><th>Issue</th><th>Engine</th><th>Created</th><th>PR</th></tr></thead>
+        <thead><tr><th>Status</th><th>Issue</th><th>Repo</th><th>Engine</th><th>Created</th><th>PR</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   }
 
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  function openModal(_id) { /* implemented in Task 5 */ }
 
   async function loadJobs() {
     const statusLine = document.getElementById('statusLine');
     statusLine.textContent = 'Loading…';
+    allJobs = [];
+    currentOffset = 0;
     try {
-      const resp = await fetch('/api/jobs', {
+      const resp = await fetch(`/api/jobs?limit=${PAGE_SIZE}&offset=0`, {
         headers: getToken() ? { 'X-Admin-Token': getToken() } : {},
       });
       if (resp.status === 401) {
@@ -189,7 +221,10 @@
       }
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const jobs = await resp.json();
-      renderTable(jobs);
+      allJobs = jobs;
+      currentOffset = jobs.length;
+      renderStats();
+      renderTable(allJobs);
       statusLine.textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''} · refreshed ${new Date().toLocaleTimeString()}`;
     } catch (err) {
       statusLine.textContent = `Error: ${err.message}`;
