@@ -603,7 +603,7 @@
         <p>An autonomous AI coding workflow that watches GitHub and GitLab issues, writes code to resolve them, runs tests, opens a pull request, and posts a code review — all without human intervention.</p>
         <div class="hero-chips">
           <span class="chip chip-blue">FastAPI</span>
-          <span class="chip chip-blue">Aider · OpenCode</span>
+          <span class="chip chip-blue">Aider · OpenCode · Claude Code</span>
           <span class="chip chip-green">GitHub · GitLab</span>
           <span class="chip chip-yellow">OpenAI-compatible LLM</span>
         </div>
@@ -630,7 +630,7 @@
         </div>
         <div class="flow-arrow">→</div>
         <div class="flow-step">
-          <div class="flow-box">AI engine<br/><small>Aider / OpenCode</small></div>
+          <div class="flow-box">AI engine<br/><small>Aider / OpenCode / Claude Code</small></div>
         </div>
         <div class="flow-arrow">→</div>
         <div class="flow-step">
@@ -742,7 +742,7 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
       </ol>
 
       <div class="callout callout-tip">
-        <p><strong>Tip:</strong> Set <code>AIDER_VERBOSE=true</code> in your <code>.env</code> to see the full Aider output in the server logs — useful for debugging why an AI run produced no changes.</p>
+        <p><strong>Tip:</strong> Set <code>VERBOSE=true</code> in your <code>.env</code> to enable DEBUG-level logging for all workflow steps — useful for diagnosing why a run produced no changes.</p>
       </div>
 
       <h3>Verifying the server</h3>
@@ -769,6 +769,9 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
             <tr><td><code>GITHUB_TOKEN</code></td><td>if GitHub</td><td><code>""</code></td><td>Personal access token or GitHub App token</td></tr>
             <tr><td><code>GITLAB_TOKEN</code></td><td>if GitLab</td><td><code>""</code></td><td>Project access token with <code>api</code> scope</td></tr>
             <tr><td><code>WEBHOOK_SECRET</code></td><td>✅</td><td>—</td><td>Secret used to verify incoming webhook payloads</td></tr>
+            <tr><td><code>VERBOSE</code></td><td>—</td><td><code>false</code></td><td>Set to <code>true</code> to enable DEBUG-level logging for all workflow steps</td></tr>
+            <tr><td><code>VERIFY_REPO_SSL</code></td><td>—</td><td><code>true</code></td><td>Set to <code>false</code> to skip SSL verification when cloning/pushing (useful for self-signed certificates)</td></tr>
+            <tr><td><code>VERIFY_ENGINE_SSL</code></td><td>—</td><td><code>true</code></td><td>Set to <code>false</code> to skip SSL verification when connecting to the LLM endpoint</td></tr>
           </tbody>
         </table>
       </div>
@@ -790,10 +793,53 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
         <table>
           <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
+            <tr><td><code>DEFAULT_AGENT</code></td><td><code>aider</code></td><td>Default AI engine when no <code>agent:</code> label is present: <code>aider</code>, <code>opencode</code>, or <code>claudecode</code></td></tr>
             <tr><td><code>MAX_RETRIES</code></td><td><code>3</code></td><td>Max test-fix cycles before giving up</td></tr>
             <tr><td><code>TEST_CMD</code></td><td><code>""</code></td><td>Shell command to run tests. Leave empty to skip test verification entirely.</td></tr>
-            <tr><td><code>DEFAULT_AGENT</code></td><td><code>aider</code></td><td>Default AI engine when no <code>agent:</code> label is present</td></tr>
-            <tr><td><code>AIDER_VERBOSE</code></td><td><code>false</code></td><td>Log full Aider output at INFO level for debugging</td></tr>
+            <tr><td><code>AGENT_TIMEOUT</code></td><td><code>600</code></td><td>Seconds before an engine subprocess is killed</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Aider settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>AIDER_MAP_TOKENS</code></td><td><code>2048</code></td><td>Tokens allocated to the repository map</td></tr>
+            <tr><td><code>AIDER_TOKEN_BUDGET</code></td><td><code>80000</code></td><td>Max tokens of non-code files pre-loaded via <code>--file</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>OpenCode settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>OPENCODE_CONTEXT_LIMIT</code></td><td><code>32768</code></td><td>Model context window advertised to OpenCode</td></tr>
+            <tr><td><code>OPENCODE_OUTPUT_LIMIT</code></td><td><code>4096</code></td><td>Max output tokens advertised to OpenCode</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Claude Code settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>CLAUDECODE_ROUTER_PORT</code></td><td><code>3456</code></td><td>Port the <code>ccr</code> router listens on</td></tr>
+            <tr><td><code>CLAUDECODE_ROUTER_STARTUP_TIMEOUT</code></td><td><code>15</code></td><td>Seconds to wait for <code>ccr</code> to become ready</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Server settings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>ADMIN_PASSWORD</code></td><td><code>""</code></td><td>When set, <code>GET /api/jobs</code> requires an <code>X-Admin-Token</code> header with this value</td></tr>
           </tbody>
         </table>
       </div>
@@ -804,6 +850,9 @@ PLATFORM=github
 REPO_URL=https://github.com/your-org/your-repo
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 WEBHOOK_SECRET=a-strong-random-secret
+VERBOSE=false
+VERIFY_REPO_SSL=true
+VERIFY_ENGINE_SSL=true
 
 <span class="cmt"># LLM (OpenRouter example)</span>
 OPENAI_API_BASE=https://openrouter.ai/api/v1
@@ -811,13 +860,17 @@ OPENAI_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxx
 OPENAI_MODEL=openai/gpt-4o
 
 <span class="cmt"># Workflow</span>
+DEFAULT_AGENT=opencode
 MAX_RETRIES=3
 TEST_CMD=pytest
-DEFAULT_AGENT=aider
-AIDER_VERBOSE=false</code></pre>
+AGENT_TIMEOUT=600</code></pre>
 
       <div class="callout callout-info">
         <p><strong>Note:</strong> When <code>TEST_CMD</code> is empty the engine runs once with no feedback loop — useful for repositories that don't have automated tests.</p>
+      </div>
+
+      <div class="callout callout-warn">
+        <p><strong>Self-signed certificates:</strong> If your LLM endpoint or Git server uses a self-signed certificate, set both <code>VERIFY_ENGINE_SSL=false</code> and <code>VERIFY_REPO_SSL=false</code>.</p>
       </div>
 
       <h3>Using a local LLM (Ollama)</h3>
@@ -1066,10 +1119,11 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
 ├── reviewer.py      <span class="cmt"># AI code review (fresh LLM session)</span>
 ├── config.py        <span class="cmt"># pydantic-settings (.env → Settings)</span>
 ├── engines/
-│   ├── base.py      <span class="cmt"># AgentEngine ABC</span>
-│   ├── aider.py     <span class="cmt"># Aider implementation</span>
-│   ├── opencode.py  <span class="cmt"># OpenCode implementation</span>
-│   └── __init__.py  <span class="cmt"># get_engine() factory</span>
+│   ├── base.py        <span class="cmt"># AgentEngine ABC</span>
+│   ├── aider.py       <span class="cmt"># Aider implementation</span>
+│   ├── opencode.py    <span class="cmt"># OpenCode implementation</span>
+│   ├── claudecode.py  <span class="cmt"># Claude Code implementation</span>
+│   └── __init__.py    <span class="cmt"># get_engine() factory</span>
 ├── platforms/
 │   ├── base.py      <span class="cmt"># GitPlatform ABC</span>
 │   ├── github.py    <span class="cmt"># PyGitHub implementation</span>
@@ -1100,15 +1154,16 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
 
       <h3>Built-in engines</h3>
 
-      <h4>Aider (default)</h4>
+      <h4>Aider</h4>
       <div class="table-wrap">
         <table>
           <tbody>
             <tr><td><strong>Label</strong></td><td><span class="label-pill label-yellow">agent: aider</span></td></tr>
             <tr><td><strong>Binary</strong></td><td><code>aider</code> (must be on <code>$PATH</code>)</td></tr>
             <tr><td><strong>LLM env var</strong></td><td><code>OPENAI_API_BASE</code>, <code>OPENAI_API_KEY</code></td></tr>
-            <tr><td><strong>Flags</strong></td><td><code>--yes --auto-commits --no-stream --message &lt;prompt&gt;</code></td></tr>
-            <tr><td><strong>Verbose logging</strong></td><td>Set <code>AIDER_VERBOSE=true</code></td></tr>
+            <tr><td><strong>Flags</strong></td><td><code>--yes --auto-commits --no-stream --map-tokens &lt;n&gt; --message &lt;prompt&gt;</code></td></tr>
+            <tr><td><strong>Settings</strong></td><td><code>AIDER_MAP_TOKENS</code>, <code>AIDER_TOKEN_BUDGET</code>, <code>AGENT_TIMEOUT</code></td></tr>
+            <tr><td><strong>SSL</strong></td><td>Passes <code>--no-verify-ssl</code> when <code>VERIFY_ENGINE_SSL=false</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -1121,6 +1176,8 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
             <tr><td><strong>Binary</strong></td><td><code>opencode</code> (must be on <code>$PATH</code>)</td></tr>
             <tr><td><strong>LLM config</strong></td><td>Writes <code>~/.config/opencode/opencode.jsonc</code> with a custom provider from <code>OPENAI_API_BASE</code> / <code>OPENAI_API_KEY</code></td></tr>
             <tr><td><strong>Flags</strong></td><td><code>--model custom/&lt;model&gt; --dir &lt;repo&gt; --dangerously-skip-permissions &lt;prompt&gt;</code></td></tr>
+            <tr><td><strong>Settings</strong></td><td><code>OPENCODE_CONTEXT_LIMIT</code>, <code>OPENCODE_OUTPUT_LIMIT</code>, <code>AGENT_TIMEOUT</code></td></tr>
+            <tr><td><strong>SSL</strong></td><td>Sets <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> when <code>VERIFY_ENGINE_SSL=false</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -1132,7 +1189,9 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
             <tr><td><strong>Label</strong></td><td><span class="label-pill label-blue">agent: claudecode</span></td></tr>
             <tr><td><strong>Binaries</strong></td><td><code>claude</code> (Claude Code CLI) + <code>ccr</code> (claude-code-router)</td></tr>
             <tr><td><strong>LLM config</strong></td><td>Writes <code>~/.claude-code-router/config.json</code> routing to your <code>OPENAI_API_BASE</code> endpoint via <code>@musistudio/claude-code-router</code></td></tr>
-            <tr><td><strong>Flags</strong></td><td><code>claude -p &lt;prompt&gt; --dangerously-skip-permissions</code> with <code>ANTHROPIC_BASE_URL=http://127.0.0.1:3456</code></td></tr>
+            <tr><td><strong>Flags</strong></td><td><code>claude -p &lt;prompt&gt; --dangerously-skip-permissions</code> with <code>ANTHROPIC_BASE_URL=http://127.0.0.1:&lt;port&gt;</code></td></tr>
+            <tr><td><strong>Settings</strong></td><td><code>CLAUDECODE_ROUTER_PORT</code>, <code>CLAUDECODE_ROUTER_STARTUP_TIMEOUT</code>, <code>AGENT_TIMEOUT</code></td></tr>
+            <tr><td><strong>SSL</strong></td><td>Sets <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> on the router process when <code>VERIFY_ENGINE_SSL=false</code></td></tr>
             <tr><td><strong>Why a router?</strong></td><td>Claude Code only speaks the Anthropic API; the router translates to OpenAI-compatible format so any endpoint works</td></tr>
           </tbody>
         </table>
@@ -1162,7 +1221,7 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
 
 get_engine(<span class="str">"aider"</span>)    <span class="cmt"># → AiderEngine()</span>
 get_engine(<span class="str">"opencode"</span>) <span class="cmt"># → OpenCodeEngine()</span>
-get_engine(<span class="str">"unknown"</span>)  <span class="cmt"># → AiderEngine() + warning log</span></code></pre>
+get_engine(<span class="str">"unknown"</span>)  <span class="cmt"># → OpenCodeEngine() + warning log</span></code></pre>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════════
@@ -1597,6 +1656,22 @@ the input is None. Also add a unit test for an empty list input.</code></pre>
       <p>A summary of every user-facing feature and notable fix since the project began. Most recent changes appear first.</p>
 
       <div style="margin-top:32px;">
+
+        <!-- ── 2026-06-09 ── -->
+        <div class="cl-entry">
+          <div class="cl-date">2026-06-09</div>
+          <h3>Full settings coverage &amp; SSL/TLS support</h3>
+          <ul>
+            <li><span class="cl-feat">Feature</span> <strong><code>VERBOSE</code></strong> — set to <code>true</code> to enable DEBUG-level logging across all workflow steps.</li>
+            <li><span class="cl-feat">Feature</span> <strong><code>VERIFY_REPO_SSL</code></strong> — set to <code>false</code> to skip SSL verification when cloning and pushing (useful for self-signed Git servers).</li>
+            <li><span class="cl-feat">Feature</span> <strong><code>VERIFY_ENGINE_SSL</code></strong> — set to <code>false</code> to skip SSL verification when engines connect to the LLM endpoint. Aider uses <code>--no-verify-ssl</code>; OpenCode and Claude Code router use <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code>.</li>
+            <li><span class="cl-feat">Feature</span> <strong><code>AGENT_TIMEOUT</code></strong> — configurable subprocess timeout (default 600 s) shared by all engines, replacing the previously hardcoded value.</li>
+            <li><span class="cl-feat">Feature</span> <strong>Aider</strong>: <code>AIDER_MAP_TOKENS</code> and <code>AIDER_TOKEN_BUDGET</code> are now configurable (were hardcoded at 2048 and 80000).</li>
+            <li><span class="cl-feat">Feature</span> <strong>OpenCode</strong>: <code>OPENCODE_CONTEXT_LIMIT</code> and <code>OPENCODE_OUTPUT_LIMIT</code> control the model limits advertised in the provider config (were hardcoded at 32768 / 4096).</li>
+            <li><span class="cl-feat">Feature</span> <strong>Claude Code</strong>: <code>CLAUDECODE_ROUTER_PORT</code> and <code>CLAUDECODE_ROUTER_STARTUP_TIMEOUT</code> are now configurable (were hardcoded at 3456 / 15 s).</li>
+            <li><span class="cl-fix">Fix</span> <code>TEST_CMD</code> and <code>ADMIN_PASSWORD</code> inline comments in <code>.env.example</code> were being parsed as the setting value by python-dotenv. Comments for empty values are now placed on separate lines.</li>
+          </ul>
+        </div>
 
         <!-- ── 2026-06-08 ── -->
         <div class="cl-entry">
