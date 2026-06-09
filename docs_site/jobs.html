@@ -86,6 +86,7 @@
   .btn-secondary { background: none; border: 1px solid var(--border); color: var(--text); }
   .stats-bar { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
   .stats-bar strong { color: var(--text); }
+  .status-line { color: var(--text-muted); font-size: 13px; }
   .repo-cell { font-size: 12px; color: var(--text-muted); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   tr.job-row { cursor: pointer; }
   .filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -110,12 +111,14 @@
       <button class="filter-tab active" onclick="setFilter('')">All</button>
       <button class="filter-tab" onclick="setFilter('queued')">Queued</button>
       <button class="filter-tab" onclick="setFilter('processing')">Processing</button>
+      <button class="filter-tab" onclick="setFilter('reworking')">Reworking</button>
+      <button class="filter-tab" onclick="setFilter('needs_clarification')">Needs Clarification</button>
       <button class="filter-tab" onclick="setFilter('done')">Done</button>
       <button class="filter-tab" onclick="setFilter('failed')">Failed</button>
     </div>
     <input class="search-input" id="searchInput" type="search" placeholder="Search issues or repos…" oninput="setSearch(this.value)">
     <span style="flex:1"></span>
-    <span id="statusLine" style="color:var(--text-muted);font-size:13px">Loading…</span>
+    <span id="statusLine" class="status-line">Loading…</span>
     <button class="refresh-btn" onclick="loadJobs()">Refresh</button>
   </div>
   <div id="tableWrap"></div>
