@@ -185,7 +185,7 @@
     }
     const rows = jobs.map(j => `
       <tr class="job-row" onclick="openModal(${j.id})">
-        <td><span class="badge badge-${j.status}">${j.status.replace(/_/g,' ')}</span></td>
+        <td><span class="badge badge-${escHtml(j.status)}">${escHtml(j.status.replace(/_/g,' '))}</span></td>
         <td>
           <div class="issue-title">${escHtml(j.issue_title)}</div>
           <div class="issue-num">${escHtml(j.platform)} #${j.issue_number}</div>
