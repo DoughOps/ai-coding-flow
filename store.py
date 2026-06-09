@@ -62,10 +62,10 @@ def update_job(db_path: str, job_id: int, **fields) -> None:
             logger.warning("update_job: no row with id=%d", job_id)
 
 
-def list_jobs(db_path: str, limit: int = 100) -> list[dict]:
+def list_jobs(db_path: str, limit: int = 50, offset: int = 0) -> list[dict]:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)
+            "SELECT * FROM jobs ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset)
         ).fetchall()
     return [dict(row) for row in rows]

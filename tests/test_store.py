@@ -53,3 +53,11 @@ def test_create_job_stores_repo_url(db):
     )
     jobs = store.list_jobs(db)
     assert jobs[0]["repo_url"] == "https://github.com/owner/repo.git"
+
+
+def test_list_jobs_respects_offset(db):
+    for i in range(5):
+        store.create_job(db, platform="github", issue_number=i, issue_title=f"Issue {i}")
+    jobs = store.list_jobs(db, limit=5, offset=2)
+    assert len(jobs) == 3
+    assert jobs[0]["issue_title"] == "Issue 2"

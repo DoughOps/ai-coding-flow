@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import store
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -50,12 +50,16 @@ async def root():
 
 
 @app.get("/api/jobs")
-async def api_jobs(request: Request):
+async def api_jobs(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
     if settings.admin_password:
         token = request.headers.get("X-Admin-Token", "")
         if not hmac.compare_digest(token, settings.admin_password):
             raise HTTPException(status_code=401, detail="Unauthorized")
-    return store.list_jobs(settings.db_path)
+    return store.list_jobs(settings.db_path, limit=limit, offset=offset)
 
 
 @app.post("/webhook/github")

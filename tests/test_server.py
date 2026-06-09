@@ -460,3 +460,11 @@ def test_gitlab_webhook_missing_repo_url_is_ignored(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == "ignored"
     mock_enqueue.assert_not_called()
+
+
+def test_api_jobs_forwards_limit_and_offset(client):
+    from unittest.mock import ANY
+    with patch("server.store.list_jobs", return_value=[]) as mock_list:
+        resp = client.get("/api/jobs?limit=10&offset=20")
+    assert resp.status_code == 200
+    mock_list.assert_called_once_with(ANY, limit=10, offset=20)
