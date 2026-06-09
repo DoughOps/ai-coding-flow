@@ -3,9 +3,9 @@ from .github import GitHubPlatform
 from .gitlab import GitLabPlatform
 
 
-def create_platform(settings) -> GitPlatform:
-    if settings.platform == "github":
-        return GitHubPlatform(token=settings.github_token, repo_url=settings.repo_url)
-    if settings.platform == "gitlab":
-        return GitLabPlatform(token=settings.gitlab_token, repo_url=settings.repo_url)
-    raise ValueError(f"Unknown platform: {settings.platform}")
+def create_platform(platform: str, repo_url: str, settings) -> GitPlatform:
+    if platform == "github":
+        return GitHubPlatform(token=settings.github_token, repo_url=repo_url)
+    if platform == "gitlab":
+        return GitLabPlatform(token=settings.gitlab_token, repo_url=repo_url)
+    raise ValueError(f"Unknown platform: {platform}")
