@@ -206,6 +206,10 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function _safeUrl(url) {
+    return /^https?:\/\//i.test(url) ? url : '';
+  }
+
   function _filtered() {
     return allJobs.filter(j => {
       if (activeStatus && j.status !== activeStatus) return false;
@@ -260,7 +264,7 @@
         <td class="repo-cell">${escHtml(_repoSlug(j.repo_url))}</td>
         <td>${j.engine ? escHtml(j.engine) : '—'}</td>
         <td>${formatDate(j.created_at)}</td>
-        <td>${j.pr_url ? `<a class="pr-link" href="${escHtml(j.pr_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR ↗</a>` : '—'}</td>
+        <td>${_safeUrl(j.pr_url) ? `<a class="pr-link" href="${escHtml(j.pr_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">PR ↗</a>` : '—'}</td>
       </tr>`).join('');
     wrap.innerHTML = `
       <table>
@@ -274,12 +278,12 @@
     if (!j) return;
     document.getElementById('modalContent').innerHTML = `
       <dl class="detail-list">
-        <dt>Issue</dt>   <dd>#${j.issue_number} — ${escHtml(j.issue_title)}</dd>
+        <dt>Issue</dt>   <dd>#${escHtml(String(j.issue_number))} — ${escHtml(j.issue_title)}</dd>
         <dt>Repo</dt>    <dd>${escHtml(_repoSlug(j.repo_url))}</dd>
         <dt>Platform</dt><dd>${escHtml(j.platform)}</dd>
         <dt>Status</dt>  <dd><span class="badge badge-${escHtml(j.status)}">${escHtml(j.status.replace(/_/g,' '))}</span></dd>
         <dt>Engine</dt>  <dd>${j.engine ? escHtml(j.engine) : '—'}</dd>
-        <dt>PR</dt>      <dd>${j.pr_url ? `<a href="${escHtml(j.pr_url)}" target="_blank" rel="noopener">${escHtml(j.pr_url)}</a>` : '—'}</dd>
+        <dt>PR</dt>      <dd>${_safeUrl(j.pr_url) ? `<a href="${escHtml(j.pr_url)}" target="_blank" rel="noopener">${escHtml(j.pr_url)}</a>` : (j.pr_url ? escHtml(j.pr_url) : '—')}</dd>
         ${j.error_msg ? `<dt>Error</dt><dd><pre class="error-pre">${escHtml(j.error_msg)}</pre></dd>` : ''}
         <dt>Created</dt> <dd>${formatDate(j.created_at)}</dd>
         <dt>Updated</dt> <dd>${formatDate(j.updated_at)}</dd>
