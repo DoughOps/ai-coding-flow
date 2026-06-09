@@ -96,6 +96,9 @@
   .filter-tab.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .search-input { border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; background: var(--surface); color: var(--text); font-size: 13px; width: 200px; }
   .search-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .load-more-wrap { text-align: center; margin-top: 16px; }
+  .load-more-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 20px; cursor: pointer; color: var(--text); font-size: 13px; }
+  .load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -122,6 +125,9 @@
     <button class="refresh-btn" onclick="loadJobs()">Refresh</button>
   </div>
   <div id="tableWrap"></div>
+  <div class="load-more-wrap" id="paginationWrap" style="display:none">
+    <button class="load-more-btn" onclick="loadMore()">Load more</button>
+  </div>
 </main>
 
 <dialog id="authDialog">
@@ -251,6 +257,10 @@
 
   function openModal(_id) { /* implemented in Task 5 */ }
 
+  function renderPagination(hasMore) {
+    document.getElementById('paginationWrap').style.display = hasMore ? 'block' : 'none';
+  }
+
   async function loadJobs() {
     const statusLine = document.getElementById('statusLine');
     statusLine.textContent = 'Loading…';
@@ -272,9 +282,30 @@
       currentOffset = jobs.length;
       renderStats();
       renderTable(_filtered());
+      renderPagination(jobs.length === PAGE_SIZE);
       statusLine.textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''} · refreshed ${new Date().toLocaleTimeString()}`;
     } catch (err) {
       statusLine.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  // ── load more ─────────────────────────────────────────────────────────────
+  async function loadMore() {
+    try {
+      const resp = await fetch(`/api/jobs?limit=${PAGE_SIZE}&offset=${currentOffset}`, {
+        headers: getToken() ? { 'X-Admin-Token': getToken() } : {},
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const jobs = await resp.json();
+      allJobs = allJobs.concat(jobs);
+      currentOffset += jobs.length;
+      renderStats();
+      renderTable(_filtered());
+      renderPagination(jobs.length === PAGE_SIZE);
+      document.getElementById('statusLine').textContent =
+        `${allJobs.length} job${allJobs.length !== 1 ? 's' : ''} loaded`;
+    } catch (err) {
+      document.getElementById('statusLine').textContent = `Error: ${err.message}`;
     }
   }
 
