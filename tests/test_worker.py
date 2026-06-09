@@ -75,11 +75,13 @@ def test_build_rework_body_separator_present():
 import asyncio
 from unittest.mock import AsyncMock, patch
 
+
 def test_process_rework_job_posts_completion_comment():
     from worker import Job, _process_rework_job
 
     job = Job(
         platform="github",
+        repo_url="https://github.com/owner/repo",
         issue_number=42,
         title="Fix bug",
         body="There is a bug",
@@ -117,6 +119,7 @@ def test_process_rework_job_posts_failure_comment_on_error():
 
     job = Job(
         platform="github",
+        repo_url="https://github.com/owner/repo",
         issue_number=42,
         title="Fix bug",
         body="Body",

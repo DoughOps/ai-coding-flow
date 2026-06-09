@@ -19,6 +19,7 @@ _settings_ref: Settings | None = None
 @dataclass
 class Job:
     platform: str
+    repo_url: str
     issue_number: int
     title: str
     body: str
@@ -33,6 +34,7 @@ _queue: asyncio.Queue = asyncio.Queue()
 async def enqueue_job(
     *,
     platform: str,
+    repo_url: str,
     issue_number: int,
     title: str,
     body: str,
@@ -44,11 +46,13 @@ async def enqueue_job(
         job_id = store.create_job(
             _settings_ref.db_path,
             platform=platform,
+            repo_url=repo_url,
             issue_number=issue_number,
             issue_title=title,
         )
     await _queue.put(Job(
         platform=platform,
+        repo_url=repo_url,
         issue_number=issue_number,
         title=title,
         body=body,
@@ -56,7 +60,7 @@ async def enqueue_job(
         pr_branch=pr_branch,
         rework_comment=rework_comment,
     ))
-    logger.info("Enqueued issue #%d (%s)", issue_number, platform)
+    logger.info("Enqueued issue #%d (%s) from %s", issue_number, platform, repo_url)
 
 
 async def start_worker(settings: Settings) -> None:
@@ -74,7 +78,7 @@ async def start_worker(settings: Settings) -> None:
         except Exception as exc:
             logger.exception("Unhandled error for issue #%d", job.issue_number)
             try:
-                platform = create_platform(settings)
+                platform = create_platform(job.platform, job.repo_url, settings)
                 platform.remove_label(job.issue_number, _LABEL_PROCESSING)
                 platform.set_label(job.issue_number, _LABEL_FAILED)
                 platform.post_comment(
@@ -132,7 +136,7 @@ def _build_rework_body(original_body: str, rework_comment: str) -> str:
 
 
 async def _process_job(job: Job, settings: Settings) -> None:
-    platform = create_platform(settings)
+    platform = create_platform(job.platform, job.repo_url, settings)
     branch = f"ai/issue-{job.issue_number}-{_slugify(job.title)}"
     logger.info("Processing issue #%d on branch %s", job.issue_number, branch)
 
@@ -153,6 +157,8 @@ async def _process_job(job: Job, settings: Settings) -> None:
         branch=branch,
         settings=settings,
         engine=engine,
+        repo_url=job.repo_url,
+        platform=job.platform,
     )
 
     try:
@@ -178,7 +184,15 @@ async def _process_job(job: Job, settings: Settings) -> None:
             )
             return
 
-        await asyncio.to_thread(push_branch, repo_path, branch, settings, force=True)
+        await asyncio.to_thread(
+            push_branch,
+            repo_path,
+            branch,
+            settings,
+            job.repo_url,
+            job.platform,
+            force=True,
+        )
 
         pr_title = f"fix: {job.title} (resolves #{job.issue_number})"
         pr_body = (
@@ -211,7 +225,7 @@ async def _process_job(job: Job, settings: Settings) -> None:
 
 
 async def _process_rework_job(job: Job, settings: Settings) -> None:
-    platform = create_platform(settings)
+    platform = create_platform(job.platform, job.repo_url, settings)
     if job.job_id:
         store.update_job(settings.db_path, job.job_id, status="reworking")
     _swap_label(platform, job.issue_number, "", _LABEL_PROCESSING)
@@ -236,6 +250,8 @@ async def _process_rework_job(job: Job, settings: Settings) -> None:
         branch=job.pr_branch,
         settings=settings,
         engine=engine,
+        repo_url=job.repo_url,
+        platform=job.platform,
         start_ref=f"origin/{job.pr_branch}",
     )
 
@@ -250,7 +266,15 @@ async def _process_rework_job(job: Job, settings: Settings) -> None:
             )
             return
 
-        await asyncio.to_thread(push_branch, repo_path_str, job.pr_branch, settings, force=True)
+        await asyncio.to_thread(
+            push_branch,
+            repo_path_str,
+            job.pr_branch,
+            settings,
+            job.repo_url,
+            job.platform,
+            force=True,
+        )
         _swap_label(platform, job.issue_number, _LABEL_PROCESSING, _LABEL_DONE)
         if job.job_id:
             store.update_job(settings.db_path, job.job_id, status="done")
