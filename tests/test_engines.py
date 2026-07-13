@@ -274,6 +274,52 @@ def test_get_engine_returns_claudecode():
     assert isinstance(get_engine("claudecode"), ClaudeCodeEngine)
 
 
+# ── CCREngine ─────────────────────────────────────────────────────────────────
+
+def test_ccr_engine_name():
+    from engines.ccr import CCREngine
+    assert CCREngine().name == "ccr"
+
+
+def test_ccr_engine_run_calls_ccr_code(tmp_path):
+    from engines.ccr import CCREngine
+    with patch("engines.ccr.subprocess.run") as mock_run, \
+         patch("engines.ccr._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="Done.", stderr="", returncode=0)
+        output = CCREngine().run(tmp_path, "Fix the login bug", _mock_settings())
+    cmd = mock_run.call_args_list[0][0][0]
+    assert cmd == ["ccr", "code", "-p", "Fix the login bug", "--dangerously-skip-permissions"]
+    assert output == "Done."
+
+
+def test_ccr_engine_commits_changes_after_run(tmp_path):
+    from engines.ccr import CCREngine
+    with patch("engines.ccr.subprocess.run") as mock_run, \
+         patch("engines.ccr._write_router_config"), \
+         patch("engines.ccr._git_commit_all") as mock_commit:
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        CCREngine().run(tmp_path, "fix it", _mock_settings())
+    mock_commit.assert_called_once_with(tmp_path)
+
+
+def test_ccr_engine_run_disables_ssl_verification_when_configured(tmp_path):
+    from engines.ccr import CCREngine
+    settings = _mock_settings()
+    settings.verify_engine_ssl = False
+    with patch("engines.ccr.subprocess.run") as mock_run, \
+         patch("engines.ccr._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        CCREngine().run(tmp_path, "prompt", settings)
+    env = mock_run.call_args_list[0][1]["env"]
+    assert env["NODE_TLS_REJECT_UNAUTHORIZED"] == "0"
+
+
+def test_get_engine_returns_ccr():
+    from engines import get_engine
+    from engines.ccr import CCREngine
+    assert isinstance(get_engine("ccr"), CCREngine)
+
+
 @pytest.mark.skipif(
     __import__("shutil").which("claude") is None,
     reason="claude binary not installed",

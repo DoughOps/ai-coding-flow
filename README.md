@@ -73,7 +73,7 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |---|---|---|
-| `DEFAULT_AGENT` | Engine to use: `aider`, `opencode`, or `claudecode` (override per-issue with label `agent: <name>`) | `aider` |
+| `DEFAULT_AGENT` | Engine to use: `aider`, `opencode`, `claudecode`, or `ccr` (override per-issue with label `agent: <name>`) | `aider` |
 | `MAX_RETRIES` | Max test-fix cycles before giving up | `3` |
 | `TEST_CMD` | Command to run tests; leave empty to skip | — |
 | `AGENT_TIMEOUT` | Seconds before an engine subprocess is killed | `600` |
@@ -157,14 +157,14 @@ GitHub/GitLab Issue Created
          │
          ▼
   Worker (one issue at a time)
-  ┌─────────────────────────────────┐
-  │  Clone/pull repo → /tmp/        │
-  │  Create branch ai/issue-{n}-…   │
-  │  Run engine with issue text     │
-  │    aider | opencode | claudecode│
-  │  Run TEST_CMD                   │
-  │  Retry up to MAX_RETRIES times  │
-  └─────────────────────────────────┘
+  ┌───────────────────────────────────────────┐
+  │  Clone/pull repo → /tmp/                   │
+  │  Create branch ai/issue-{n}-…              │
+  │  Run engine with issue text                │
+  │    aider | opencode | claudecode | ccr     │
+  │  Run TEST_CMD                              │
+  │  Retry up to MAX_RETRIES times             │
+  └───────────────────────────────────────────┘
          │
     ┌────┴────┐
   pass      fail
@@ -180,7 +180,7 @@ GitHub/GitLab Issue Created
 | `server.py` | FastAPI app, webhook endpoints, HMAC verification |
 | `worker.py` | asyncio job queue, orchestrates each issue |
 | `agent.py` | Clone/push helpers, retry loop |
-| `engines/` | Pluggable engine adapters: `aider`, `opencode`, `claudecode` |
+| `engines/` | Pluggable engine adapters: `aider`, `opencode`, `claudecode`, `ccr` |
 | `reviewer.py` | Fresh LLM call to review the final diff |
 | `platforms/` | GitHub + GitLab abstraction |
 | `config.py` | Pydantic-settings, all config from `.env` |
