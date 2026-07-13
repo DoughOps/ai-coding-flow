@@ -169,8 +169,8 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
 
     if payload.get("object_kind") == "issue" and attrs.get("action") == "update":
         label_changes = payload.get("changes", {}).get("labels", {})
-        previous = {l.get("title", "") for l in label_changes.get("previous", [])}
-        current = {l.get("title", "") for l in label_changes.get("current", [])}
+        previous = {entry.get("title", "") for entry in label_changes.get("previous", [])}
+        current = {entry.get("title", "") for entry in label_changes.get("current", [])}
         newly_added = current - previous
         if any(lbl.startswith("agent: ") for lbl in newly_added):
             background_tasks.add_task(

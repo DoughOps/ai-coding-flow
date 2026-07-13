@@ -1,5 +1,4 @@
 from unittest.mock import MagicMock
-import pytest
 from agent import _build_prompt, _authenticated_url, _repo_slug
 
 

@@ -65,7 +65,7 @@ class GitLabPlatform(GitPlatform):
         if not issues:
             return
         gl_issue = issues[0]
-        labels = [l for l in (gl_issue.labels or []) if l != label]
+        labels = [lbl for lbl in (gl_issue.labels or []) if lbl != label]
         gl_issue.labels = labels
         gl_issue.save()
 

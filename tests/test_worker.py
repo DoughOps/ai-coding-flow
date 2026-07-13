@@ -1,5 +1,6 @@
-import pytest
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import MagicMock, patch
+
 from worker import _slugify
 
 
@@ -70,10 +71,6 @@ def test_build_rework_body_separator_present():
     from worker import _build_rework_body
     result = _build_rework_body("Body", "/rework fix it")
     assert "---" in result
-
-
-import asyncio
-from unittest.mock import AsyncMock, patch
 
 
 def test_process_rework_job_posts_completion_comment():

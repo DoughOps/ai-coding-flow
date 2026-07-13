@@ -1,4 +1,4 @@
-from .base import GitPlatform, Issue
+from .base import GitPlatform
 from .github import GitHubPlatform
 from .gitlab import GitLabPlatform
 

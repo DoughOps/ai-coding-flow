@@ -58,7 +58,6 @@ def test_aider_engine_run_calls_aider_binary():
 
 def test_aider_engine_run_passes_env_vars():
     from engines.aider import AiderEngine
-    import os
     with patch("engines.aider.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
         AiderEngine().run(Path("/tmp/repo"), "prompt", _mock_settings())
