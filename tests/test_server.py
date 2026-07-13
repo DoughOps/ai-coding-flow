@@ -467,3 +467,56 @@ def test_api_jobs_forwards_limit_and_offset(client):
         resp = client.get("/api/jobs?limit=10&offset=20")
     assert resp.status_code == 200
     mock_list.assert_called_once_with(ANY, limit=10, offset=20)
+
+
+def test_test_engine_start_no_password_returns_run_id(client):
+    with patch("server.start_test_run", return_value="abc123") as mock_start, \
+         patch("server.asyncio.to_thread", return_value=None), \
+         patch("server.asyncio.create_task") as mock_create_task:
+        resp = client.post("/api/test-engine?engine=aider")
+    assert resp.status_code == 200
+    assert resp.json() == {"run_id": "abc123", "status": "running"}
+    mock_start.assert_called_once()
+    mock_create_task.assert_called_once()
+
+
+def test_test_engine_status_unknown_id_returns_404(client):
+    with patch("server.get_test_run", return_value=None):
+        resp = client.get("/api/test-engine/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_test_engine_status_known_id_returns_run(client):
+    run = {"id": "abc123", "status": "done", "diff": "+x", "engine": "aider"}
+    with patch("server.get_test_run", return_value=run):
+        resp = client.get("/api/test-engine/abc123")
+    assert resp.status_code == 200
+    assert resp.json() == run
+
+
+def test_test_engine_start_requires_admin_token(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test")
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:11434/v1")
+    monkeypatch.setenv("ADMIN_PASSWORD", "secret123")
+    import importlib
+    import server
+    importlib.reload(server)
+    from fastapi.testclient import TestClient
+    c = TestClient(server.app)
+    resp = c.post("/api/test-engine?engine=aider", headers={"X-Admin-Token": "wrong"})
+    assert resp.status_code == 401
+
+
+def test_test_engine_status_requires_admin_token(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_test")
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:11434/v1")
+    monkeypatch.setenv("ADMIN_PASSWORD", "secret123")
+    import importlib
+    import server
+    importlib.reload(server)
+    from fastapi.testclient import TestClient
+    c = TestClient(server.app)
+    resp = c.get("/api/test-engine/abc123", headers={"X-Admin-Token": "wrong"})
+    assert resp.status_code == 401

@@ -48,3 +48,6 @@ coverage.xml
 # Temp work directory used by agent
 /tmp/ai-coding-flow/
 *.db
+
+# Node (project-local ccr install — see package.json)
+node_modules/

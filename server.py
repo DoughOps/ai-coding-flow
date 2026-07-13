@@ -14,6 +14,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import Settings
+from engine_test import get_test_run, run_smoke_test, start_test_run
+from engines import get_engine
 from worker import enqueue_job, start_worker
 
 logger = logging.getLogger(__name__)
@@ -49,17 +51,39 @@ async def root():
     return RedirectResponse(url="/guide")
 
 
+def _require_admin(request: Request) -> None:
+    if settings.admin_password:
+        token = request.headers.get("X-Admin-Token", "")
+        if not hmac.compare_digest(token, settings.admin_password):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 @app.get("/api/jobs")
 async def api_jobs(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    if settings.admin_password:
-        token = request.headers.get("X-Admin-Token", "")
-        if not hmac.compare_digest(token, settings.admin_password):
-            raise HTTPException(status_code=401, detail="Unauthorized")
+    _require_admin(request)
     return store.list_jobs(settings.db_path, limit=limit, offset=offset)
+
+
+@app.post("/api/test-engine")
+async def api_test_engine_start(request: Request, engine: str = Query(...)):
+    _require_admin(request)
+    agent_engine = get_engine(engine)
+    run_id = start_test_run(agent_engine, settings)
+    asyncio.create_task(asyncio.to_thread(run_smoke_test, run_id, agent_engine, settings))
+    return {"run_id": run_id, "status": "running"}
+
+
+@app.get("/api/test-engine/{run_id}")
+async def api_test_engine_status(request: Request, run_id: str):
+    _require_admin(request)
+    run = get_test_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return run
 
 
 @app.post("/webhook/github")

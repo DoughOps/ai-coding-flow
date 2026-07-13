@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     opencode_context_limit: int = 32768
     opencode_output_limit: int = 4096
 
-    claudecode_router_port: int = 3456
+    claudecode_router_port: int = 18456
     claudecode_router_startup_timeout: int = 15
 
     admin_password: str = ""
