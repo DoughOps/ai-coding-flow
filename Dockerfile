@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install AI coding engines (opencode + claude-code-router + claude CLI)
-RUN npm install -g opencode-ai @musistudio/claude-code-router @anthropic-ai/claude-code
+# claude-code-router is pinned to v2 — v3 contains breaking changes.
+RUN npm install -g opencode-ai @musistudio/claude-code-router@2.0.0 @anthropic-ai/claude-code
 
 # Python dependencies (includes aider-chat which installs the aider binary)
 COPY requirements.txt .
