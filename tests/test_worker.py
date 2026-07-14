@@ -146,3 +146,61 @@ def test_process_rework_job_posts_failure_comment_on_error():
     mock_platform.post_comment.assert_called_once()
     comment_text = mock_platform.post_comment.call_args[0][1]
     assert "tests failed" in comment_text
+
+
+# ── _KeyedLocks ───────────────────────────────────────────────────────────────
+
+def test_keyed_locks_same_key_serializes():
+    from worker import _KeyedLocks
+
+    async def main():
+        locks = _KeyedLocks()
+        events = []
+
+        async def hold(name):
+            async with locks.acquire("issue-1"):
+                events.append(f"{name}-enter")
+                await asyncio.sleep(0.02)
+                events.append(f"{name}-exit")
+
+        await asyncio.gather(hold("a"), hold("b"))
+        # Whoever enters first must exit before the other enters.
+        assert events[1].endswith("-exit")
+        assert events[0][0] == events[1][0]
+
+    asyncio.run(main())
+
+
+def test_keyed_locks_different_keys_run_concurrently():
+    from worker import _KeyedLocks
+
+    async def main():
+        locks = _KeyedLocks()
+        running = 0
+        max_running = 0
+
+        async def hold(key):
+            nonlocal running, max_running
+            async with locks.acquire(key):
+                running += 1
+                max_running = max(max_running, running)
+                await asyncio.sleep(0.02)
+                running -= 1
+
+        await asyncio.gather(hold("k1"), hold("k2"))
+        assert max_running == 2
+
+    asyncio.run(main())
+
+
+def test_keyed_locks_entries_removed_after_release():
+    from worker import _KeyedLocks
+
+    async def main():
+        locks = _KeyedLocks()
+        async with locks.acquire("k"):
+            assert "k" in locks._locks
+        assert locks._locks == {}
+        assert locks._refcounts == {}
+
+    asyncio.run(main())

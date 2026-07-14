@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import store
@@ -26,6 +27,35 @@ class Job:
     job_id: int = 0
     pr_branch: str = ""
     rework_comment: str = ""
+
+
+class _KeyedLocks:
+    """Serialize coroutines sharing a key; independent keys don't contend.
+
+    Entries are refcounted and removed once no coroutine holds or awaits
+    the key, so the dict can't grow unboundedly. Safe without extra locking
+    because all mutation happens synchronously on the event loop thread.
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict = {}
+        self._refcounts: dict = {}
+
+    @asynccontextmanager
+    async def acquire(self, key):
+        self._refcounts[key] = self._refcounts.get(key, 0) + 1
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        try:
+            async with lock:
+                yield
+        finally:
+            self._refcounts[key] -= 1
+            if self._refcounts[key] == 0:
+                del self._refcounts[key]
+                del self._locks[key]
+
+
+job_locks = _KeyedLocks()
 
 
 _queue: asyncio.Queue = asyncio.Queue()
