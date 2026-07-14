@@ -93,18 +93,15 @@ async def enqueue_job(
     logger.info("Enqueued issue #%d (%s) from %s", issue_number, platform, repo_url)
 
 
-async def start_worker(settings: Settings) -> None:
-    global _settings_ref
-    _settings_ref = settings
-    cleanup_old_repos()
-    logger.info("Worker started")
+async def _worker_loop(settings: Settings) -> None:
     while True:
         job = await _queue.get()
         try:
-            if job.rework_comment and job.pr_branch:
-                await _process_rework_job(job, settings)
-            else:
-                await _process_job(job, settings)
+            async with job_locks.acquire((job.platform, job.repo_url, job.issue_number)):
+                if job.rework_comment and job.pr_branch:
+                    await _process_rework_job(job, settings)
+                else:
+                    await _process_job(job, settings)
         except Exception as exc:
             logger.exception("Unhandled error for issue #%d", job.issue_number)
             try:
@@ -119,6 +116,15 @@ async def start_worker(settings: Settings) -> None:
                 logger.exception("Failed to post error comment for issue #%d", job.issue_number)
         finally:
             _queue.task_done()
+
+
+async def start_workers(settings: Settings) -> None:
+    global _settings_ref
+    _settings_ref = settings
+    cleanup_old_repos()
+    count = settings.max_concurrent_jobs
+    logger.info("Starting %d worker(s)", count)
+    await asyncio.gather(*(_worker_loop(settings) for _ in range(count)))
 
 
 _LABEL_PROCESSING = "ai: processing"

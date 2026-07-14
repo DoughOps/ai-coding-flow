@@ -204,3 +204,78 @@ def test_keyed_locks_entries_removed_after_release():
         assert locks._refcounts == {}
 
     asyncio.run(main())
+
+
+# ── worker pool ───────────────────────────────────────────────────────────────
+
+def _pool_settings():
+    settings = MagicMock()
+    settings.max_concurrent_jobs = 3
+    settings.db_path = ":memory:"
+    return settings
+
+
+def _job(issue_number, repo_url="https://github.com/owner/repo"):
+    from worker import Job
+    return Job(
+        platform="github",
+        repo_url=repo_url,
+        issue_number=issue_number,
+        title=f"Issue {issue_number}",
+        body="body",
+    )
+
+
+def _run_pool(jobs, fake_process):
+    """Start the worker pool, feed it jobs, wait for them all, tear down."""
+    import worker
+
+    async def main():
+        worker._queue = asyncio.Queue()
+        for job in jobs:
+            await worker._queue.put(job)
+        with patch("worker.cleanup_old_repos"), \
+             patch("worker._process_job", side_effect=fake_process), \
+             patch("worker._process_rework_job", side_effect=fake_process):
+            pool = asyncio.create_task(worker.start_workers(_pool_settings()))
+            await asyncio.wait_for(worker._queue.join(), timeout=5)
+            pool.cancel()
+            try:
+                await pool
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(main())
+
+
+def test_pool_runs_different_issues_concurrently():
+    state = {"running": 0, "max_running": 0}
+
+    async def fake_process(job, settings):
+        state["running"] += 1
+        state["max_running"] = max(state["max_running"], state["running"])
+        await asyncio.sleep(0.05)
+        state["running"] -= 1
+
+    _run_pool([_job(1), _job(2), _job(3)], fake_process)
+    assert state["max_running"] >= 2
+
+
+def test_pool_serializes_same_issue_jobs():
+    state = {"running": 0, "max_running": 0}
+
+    async def fake_process(job, settings):
+        state["running"] += 1
+        state["max_running"] = max(state["max_running"], state["running"])
+        await asyncio.sleep(0.05)
+        state["running"] -= 1
+
+    _run_pool([_job(7), _job(7)], fake_process)
+    assert state["max_running"] == 1
+
+
+def test_settings_default_max_concurrent_jobs(monkeypatch):
+    monkeypatch.setenv("WEBHOOK_SECRET", "x")
+    monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:11434/v1")
+    from config import Settings
+    assert Settings(_env_file=None).max_concurrent_jobs == 3

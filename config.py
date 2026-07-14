@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         return v
 
     max_retries: int = 3
+    max_concurrent_jobs: int = 3
     test_cmd: str = ""
     agent_timeout: int = 600
     default_agent: str = "aider"
