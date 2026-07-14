@@ -1,4 +1,6 @@
 import pytest
+import sqlite3
+from unittest.mock import patch
 import store
 
 
@@ -61,3 +63,22 @@ def test_list_jobs_respects_offset(db):
     jobs = store.list_jobs(db, limit=5, offset=2)
     assert len(jobs) == 3
     assert jobs[0]["issue_title"] == "Issue 2"
+
+
+def test_all_connections_use_busy_timeout(tmp_path):
+    db = str(tmp_path / "jobs.db")
+    calls = []
+    real_connect = sqlite3.connect
+
+    def spy(path, *args, **kwargs):
+        calls.append(kwargs)
+        return real_connect(path, *args, **kwargs)
+
+    with patch("store.sqlite3.connect", side_effect=spy):
+        store.init_db(db)
+        job_id = store.create_job(db, platform="github", issue_number=1, issue_title="t")
+        store.update_job(db, job_id, status="done")
+        store.list_jobs(db)
+
+    assert len(calls) == 4
+    assert all(kwargs.get("timeout") == 30 for kwargs in calls)
