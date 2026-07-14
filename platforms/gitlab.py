@@ -1,22 +1,31 @@
 import gitlab
-from gitlab.exceptions import GitlabCreateError
+from gitlab.exceptions import GitlabCreateError, GitlabGetError
 from urllib.parse import urlparse
 from .base import GitPlatform, Issue
 
 
 class GitLabPlatform(GitPlatform):
-    def __init__(self, token: str, repo_url: str) -> None:
+    def __init__(self, token: str, repo_url: str, verify_ssl: bool = True) -> None:
         parsed = urlparse(repo_url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
-        self._gl = gitlab.Gitlab(base_url, private_token=token, ssl_verify=False)
+        self._gl = gitlab.Gitlab(base_url, private_token=token, ssl_verify=verify_ssl)
         project_path = parsed.path.lstrip("/").removesuffix(".git")
         self._project = self._gl.projects.get(project_path)
 
+    def _get_gl_issue(self, number: int):
+        # Fetch by iid via GET /projects/:id/issues/:issue_iid. The list
+        # endpoint must not be used with an iid= filter: GitLab silently
+        # ignores unknown params and returns all issues newest-first, so
+        # issues.list(iid=7)[0] resolves to the most recent issue instead.
+        try:
+            return self._project.issues.get(number)
+        except GitlabGetError:
+            return None
+
     def get_issue(self, number: int) -> Issue:
-        issues = self._project.issues.list(iid=number)
-        if not issues:
+        gl_issue = self._get_gl_issue(number)
+        if gl_issue is None:
             raise ValueError(f"Issue #{number} not found")
-        gl_issue = issues[0]
         return Issue(
             number=gl_issue.iid,
             title=gl_issue.title,
@@ -43,17 +52,15 @@ class GitLabPlatform(GitPlatform):
             raise
 
     def post_comment(self, issue_number: int, body: str) -> None:
-        issues = self._project.issues.list(iid=issue_number)
-        if not issues:
+        gl_issue = self._get_gl_issue(issue_number)
+        if gl_issue is None:
             raise ValueError(f"Issue #{issue_number} not found")
-        gl_issue = issues[0]
         gl_issue.notes.create({"body": body})
 
     def set_label(self, issue_number: int, label: str) -> None:
-        issues = self._project.issues.list(iid=issue_number)
-        if not issues:
+        gl_issue = self._get_gl_issue(issue_number)
+        if gl_issue is None:
             return
-        gl_issue = issues[0]
         labels = list(gl_issue.labels or [])
         if label not in labels:
             labels.append(label)
@@ -61,14 +68,13 @@ class GitLabPlatform(GitPlatform):
             gl_issue.save()
 
     def remove_label(self, issue_number: int, label: str) -> None:
-        issues = self._project.issues.list(iid=issue_number)
-        if not issues:
+        gl_issue = self._get_gl_issue(issue_number)
+        if gl_issue is None:
             return
-        gl_issue = issues[0]
         labels = [lbl for lbl in (gl_issue.labels or []) if lbl != label]
         gl_issue.labels = labels
         gl_issue.save()
 
     def get_labels(self, issue_number: int) -> list[str]:
-        issues = self._project.issues.list(iid=issue_number)
-        return list(issues[0].labels or []) if issues else []
+        gl_issue = self._get_gl_issue(issue_number)
+        return list(gl_issue.labels or []) if gl_issue else []

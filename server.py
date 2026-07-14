@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import store
+import urllib3
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,16 @@ from worker import enqueue_job, start_worker
 logger = logging.getLogger(__name__)
 settings = Settings()
 logging.basicConfig(level=logging.DEBUG if settings.verbose else logging.INFO)
+
+
+def _configure_insecure_warnings(s: Settings) -> None:
+    """Silence urllib3's InsecureRequestWarning, but only when the operator
+    has explicitly disabled SSL verification in the environment."""
+    if not (s.verify_repo_ssl and s.verify_engine_ssl):
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+_configure_insecure_warnings(settings)
 
 
 @asynccontextmanager

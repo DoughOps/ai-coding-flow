@@ -8,6 +8,7 @@ def _make_settings(platform: str) -> MagicMock:
     s.github_token = "ghp_test"
     s.gitlab_token = "glpat_test"
     s.repo_url = "https://github.com/owner/repo"
+    s.verify_repo_ssl = False
     return s
 
 
@@ -31,6 +32,7 @@ def test_factory_returns_gitlab_platform():
         mock_cls.assert_called_once_with(
             token="glpat_test",
             repo_url="https://gitlab.example.com/owner/repo",
+            verify_ssl=False,
         )
 
 

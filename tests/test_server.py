@@ -49,6 +49,28 @@ def client():
     return TestClient(server.app, raise_server_exceptions=True)
 
 
+def test_insecure_warnings_suppressed_when_ssl_disabled(client):
+    import server
+    from unittest.mock import MagicMock
+    s = MagicMock()
+    s.verify_repo_ssl = False
+    s.verify_engine_ssl = True
+    with patch("server.urllib3.disable_warnings") as mock_disable:
+        server._configure_insecure_warnings(s)
+    mock_disable.assert_called_once()
+
+
+def test_insecure_warnings_kept_when_ssl_verified(client):
+    import server
+    from unittest.mock import MagicMock
+    s = MagicMock()
+    s.verify_repo_ssl = True
+    s.verify_engine_ssl = True
+    with patch("server.urllib3.disable_warnings") as mock_disable:
+        server._configure_insecure_warnings(s)
+    mock_disable.assert_not_called()
+
+
 def test_github_valid_signature_queues_job(client):
     body = json.dumps(ISSUE_OPENED).encode()
     with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:

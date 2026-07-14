@@ -1659,6 +1659,18 @@ the input is None. Also add a unit test for an empty list input.</code></pre>
 
       <div style="margin-top:32px;">
 
+        <!-- ── 2026-07-14 (wrong-issue fix + offline aider + SSL warnings) ── -->
+        <div class="cl-entry">
+          <div class="cl-date">2026-07-14</div>
+          <h3>GitLab wrong-issue fix, offline Aider &amp; quieter insecure-SSL logs</h3>
+          <ul>
+            <li><span class="cl-fix">Fix</span> <strong>GitLab actions no longer target the wrong issue</strong> — every issue lookup used <code>issues.list(iid=N)</code>, but the GitLab list API has no <code>iid</code> filter and silently ignored it, returning all issues newest-first. Comments, labels, and <code>/rework</code> content were therefore applied to the most recently created issue (e.g. <code>/rework</code> on issue #7 acted on issue #8). Lookups now use the project-scoped <code>GET /issues/:iid</code> endpoint, which addresses issues by their real number.</li>
+            <li><span class="cl-fix">Fix</span> <strong>Aider engine works offline</strong> — Aider is now launched with <code>--no-check-update</code> (no more PyPI version-check retries) and <code>LITELLM_LOCAL_MODEL_COST_MAP=True</code>, so litellm uses its bundled model cost map instead of fetching it from <code>raw.githubusercontent.com</code>. Air-gapped runs no longer stall on connection retries and timeouts.</li>
+            <li><span class="cl-fix">Fix</span> <strong>No more <code>InsecureRequestWarning</code> spam</strong> — when you have explicitly opted into insecure mode (<code>VERIFY_REPO_SSL=false</code> or <code>VERIFY_ENGINE_SSL=false</code>), urllib3's per-request warnings are suppressed at startup. Fully verified setups still see the warnings.</li>
+            <li><span class="cl-fix">Fix</span> <strong>GitLab API client honors <code>VERIFY_REPO_SSL</code></strong> — SSL verification for the GitLab API was previously hardcoded off. It now follows the same setting as git clone/push (the API lives on the same host, so it is the same certificate trust decision).</li>
+          </ul>
+        </div>
+
         <!-- ── 2026-07-14 (webhook + branch hygiene) ── -->
         <div class="cl-entry">
           <div class="cl-date">2026-07-14</div>
