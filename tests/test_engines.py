@@ -437,3 +437,68 @@ def test_claude_binary_accepts_help():
     result = subprocess.run(["claude", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "print" in (result.stdout + result.stderr).lower()
+
+
+# ── shared persistent router ──────────────────────────────────────────────────
+
+def _reset_router_state(claudecode, tmp_path):
+    claudecode._router_proc = None
+    return patch("engines.claudecode._SANDBOX_HOME", tmp_path)
+
+
+def test_claudecode_second_run_reuses_router(tmp_path):
+    from engines import claudecode
+    from engines.claudecode import ClaudeCodeEngine
+    port_open = {"value": False}
+
+    def fake_popen(*args, **kwargs):
+        port_open["value"] = True
+        return MagicMock(pid=12345)
+
+    with _reset_router_state(claudecode, tmp_path), \
+         patch("engines.claudecode.subprocess.Popen", side_effect=fake_popen) as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", side_effect=lambda h, p: port_open["value"]), \
+         patch("engines.claudecode._our_router_pid", return_value=12345), \
+         patch("engines.claudecode._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        engine = ClaudeCodeEngine()
+        engine.run(tmp_path, "first", _mock_settings())
+        engine.run(tmp_path, "second", _mock_settings())
+    assert mock_popen.call_count == 1
+
+
+def test_claudecode_run_does_not_terminate_router(tmp_path):
+    from engines import claudecode
+    from engines.claudecode import ClaudeCodeEngine
+    proc = MagicMock(pid=12345)
+    with _reset_router_state(claudecode, tmp_path), \
+         patch("engines.claudecode.subprocess.Popen", return_value=proc), \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    proc.terminate.assert_not_called()
+    proc.kill.assert_not_called()
+
+
+def test_shutdown_router_terminates_started_router(tmp_path):
+    from engines import claudecode
+    proc = MagicMock(pid=12345)
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        claudecode._router_proc = proc
+        (tmp_path / "ccr.pid").write_text("12345")
+        claudecode.shutdown_router()
+    proc.terminate.assert_called_once()
+    assert claudecode._router_proc is None
+    assert not (tmp_path / "ccr.pid").exists()
+
+
+def test_shutdown_router_noop_when_not_started(tmp_path):
+    from engines import claudecode
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        claudecode._router_proc = None
+        claudecode.shutdown_router()  # must not raise
