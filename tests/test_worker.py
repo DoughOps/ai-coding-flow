@@ -1,4 +1,6 @@
 import asyncio
+
+import pytest
 from unittest.mock import MagicMock, patch
 
 from worker import _slugify
@@ -279,3 +281,12 @@ def test_settings_default_max_concurrent_jobs(monkeypatch):
     monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:11434/v1")
     from config import Settings
     assert Settings(_env_file=None).max_concurrent_jobs == 3
+
+
+def test_settings_rejects_nonpositive_max_concurrent_jobs(monkeypatch):
+    import pydantic
+    monkeypatch.setenv("WEBHOOK_SECRET", "x")
+    monkeypatch.setenv("OPENAI_API_BASE", "http://localhost:11434/v1")
+    from config import Settings
+    with pytest.raises(pydantic.ValidationError):
+        Settings(_env_file=None, max_concurrent_jobs=0)

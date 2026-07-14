@@ -174,6 +174,20 @@ def test_opencode_write_config_creates_provider(tmp_path):
     assert "gpt-4o" in provider["models"]
 
 
+def test_opencode_config_write_is_atomic(tmp_path):
+    from engines.opencode import _write_opencode_config
+    s = _mock_settings()
+    with patch("engines.opencode.Path.home", return_value=tmp_path), \
+         patch("engines.opencode.os.replace", side_effect=os.replace) as mock_replace:
+        _write_opencode_config(s)
+    mock_replace.assert_called_once()
+    src, dst = mock_replace.call_args[0]
+    assert Path(dst) == tmp_path / ".config" / "opencode" / "opencode.jsonc"
+    assert Path(src).parent == Path(dst).parent
+    config = json.loads(Path(dst).read_text())
+    assert "provider" in config
+
+
 @pytest.mark.skipif(
     __import__("shutil").which("opencode") is None,
     reason="opencode binary not installed",
@@ -490,6 +504,8 @@ def test_shutdown_router_terminates_started_router(tmp_path):
     proc = MagicMock(pid=12345)
     with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
         claudecode._router_proc = proc
+        # pid file is cleanup-only, not ownership evidence: ownership is
+        # determined solely by the in-memory `_router_proc` handle.
         (tmp_path / "ccr.pid").write_text("12345")
         claudecode.shutdown_router()
     proc.terminate.assert_called_once()

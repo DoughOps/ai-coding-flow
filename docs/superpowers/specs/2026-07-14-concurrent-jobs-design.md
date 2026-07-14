@@ -26,8 +26,11 @@ exposes three shared-state hazards:
    router mid-flight for the other, and the pid file races.
 
 Aider and OpenCode engines are already concurrency-safe: they run per-repo
-subprocesses with no shared mutable state (OpenCode rewrites an identical
-config file each run, which is an idempotent race).
+subprocesses with no shared mutable state. OpenCode rewrites an identical
+config file each run; the truncate-then-write was a torn-read race under
+concurrency (a concurrent `opencode` subprocess could read a partially
+written file), so the write is now atomic — written to a temp file in the
+same directory and swapped into place with `os.replace`.
 
 ## Design
 
@@ -72,8 +75,8 @@ config file each run, which is an idempotent race).
 - Runs **never** terminate the router. If it crashed, the next run's
   `_ensure_router` restarts it.
 - New `shutdown_router()` terminates the router only if we started it
-  (pid file check). Called from the server lifespan on shutdown, with an
-  `atexit` fallback for non-server usage.
+  (in-memory process handle). Called from the server lifespan on shutdown,
+  with an `atexit` fallback for non-server usage.
 - The `/api/test-engine` smoke runs go through the same path and therefore
   share the router safely.
 

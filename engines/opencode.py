@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from config import Settings
@@ -85,4 +86,12 @@ def _write_opencode_config(settings: Settings) -> None:
             }
         },
     }
-    (config_dir / "opencode.jsonc").write_text(json.dumps(config, indent=2))
+    config_path = config_dir / "opencode.jsonc"
+    fd, tmp_path = tempfile.mkstemp(dir=str(config_dir), prefix=".opencode.jsonc.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(json.dumps(config, indent=2))
+        os.replace(tmp_path, config_path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
