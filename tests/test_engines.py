@@ -335,21 +335,21 @@ def test_get_engine_returns_claudecode():
 def test_our_router_pid_none_when_no_pid_file(tmp_path):
     from engines import claudecode
     with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
-        assert claudecode._our_router_pid(18456) is None
+        assert claudecode._our_router_pid() is None
 
 
 def test_our_router_pid_none_when_process_dead(tmp_path):
     from engines import claudecode
     (tmp_path / "ccr.pid").write_text("999999999")
     with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
-        assert claudecode._our_router_pid(18456) is None
+        assert claudecode._our_router_pid() is None
 
 
 def test_our_router_pid_returns_pid_when_alive(tmp_path):
     from engines import claudecode
     (tmp_path / "ccr.pid").write_text(str(os.getpid()))
     with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
-        assert claudecode._our_router_pid(18456) == os.getpid()
+        assert claudecode._our_router_pid() == os.getpid()
 
 
 def test_ccr_binary_prefers_project_local_install(tmp_path):

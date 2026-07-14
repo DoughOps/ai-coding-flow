@@ -23,6 +23,10 @@ venv/
 env/
 ENV/
 
+# Node — ccr is installed globally in the image; the host node_modules must
+# not shadow it (the engine prefers a project-local ccr when present).
+node_modules/
+
 # Test / lint caches
 .pytest_cache/
 .cache/

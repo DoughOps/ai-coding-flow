@@ -35,7 +35,7 @@ class ClaudeCodeEngine(AgentEngine):
         router_url = f"http://{_ROUTER_HOST}:{port}"
 
         port_open = _is_port_open(_ROUTER_HOST, port)
-        if port_open and _our_router_pid(port) is None:
+        if port_open and _our_router_pid() is None:
             raise RuntimeError(
                 f"Port {port} is already in use by a process this engine didn't start "
                 f"(possibly a ccr instance you run yourself). Set CLAUDECODE_ROUTER_PORT "
@@ -107,8 +107,12 @@ def _is_port_open(host: str, port: int) -> bool:
         return False
 
 
-def _our_router_pid(port: int) -> int | None:
-    """Returns the PID if a router we ourselves started on this port is still alive."""
+def _our_router_pid() -> int | None:
+    """Returns the PID if a router we ourselves started is still alive.
+
+    Identified via the pid file we write on startup, which lives in the
+    sandbox home alongside the single router this engine ever launches.
+    """
     pid_file = _SANDBOX_HOME / "ccr.pid"
     if not pid_file.exists():
         return None
