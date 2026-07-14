@@ -570,3 +570,14 @@ def test_test_engine_status_requires_admin_token(monkeypatch):
     c = TestClient(server.app)
     resp = c.get("/api/test-engine/abc123", headers={"X-Admin-Token": "wrong"})
     assert resp.status_code == 401
+
+
+def test_lifespan_shuts_down_claudecode_router(set_env):
+    import importlib
+    import server
+    importlib.reload(server)
+    with patch("server.start_workers", new=AsyncMock()), \
+         patch("server.claudecode.shutdown_router") as mock_shutdown:
+        with TestClient(server.app):
+            pass
+    mock_shutdown.assert_called_once()

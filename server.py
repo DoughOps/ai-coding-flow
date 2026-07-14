@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from config import Settings
 from engine_test import get_test_run, run_smoke_test, start_test_run
-from engines import get_engine
+from engines import claudecode, get_engine
 from worker import enqueue_job, start_workers
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
         await task
     except asyncio.CancelledError:
         pass
+    await asyncio.to_thread(claudecode.shutdown_router)
 
 
 _DOCS_DIR = Path(__file__).parent / "docs_site"
