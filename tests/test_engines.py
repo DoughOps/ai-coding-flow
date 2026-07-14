@@ -89,6 +89,17 @@ def test_aider_engine_run_passes_env_vars():
     assert env["OPENAI_API_KEY"] == "local"
 
 
+def test_aider_engine_works_offline():
+    from engines.aider import AiderEngine
+    with patch("engines.aider.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        AiderEngine().run(Path("/tmp/repo"), "prompt", _mock_settings())
+    cmd = mock_run.call_args[0][0]
+    env = mock_run.call_args[1]["env"]
+    assert "--no-check-update" in cmd
+    assert env["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"
+
+
 def test_aider_engine_run_verbose_logs(caplog):
     import logging
     from engines.aider import AiderEngine
@@ -270,6 +281,36 @@ def test_claudecode_engine_run_sets_env_vars(tmp_path):
     env = mock_run.call_args_list[0][1]["env"]
     assert env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:3456"
     assert env["ANTHROPIC_AUTH_TOKEN"] == "local"
+
+
+def test_claudecode_sets_is_sandbox_when_root(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"), \
+         patch("engines.claudecode.os.getuid", return_value=0, create=True):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    env = mock_run.call_args_list[0][1]["env"]
+    assert env["IS_SANDBOX"] == "1"
+
+
+def test_claudecode_no_is_sandbox_when_non_root(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"), \
+         patch("engines.claudecode.os.getuid", return_value=1000, create=True):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    env = mock_run.call_args_list[0][1]["env"]
+    assert "IS_SANDBOX" not in env
 
 
 def test_claudecode_engine_commits_changes_after_run(tmp_path):

@@ -57,19 +57,25 @@ class ClaudeCodeEngine(AgentEngine):
                 stderr=subprocess.DEVNULL,
             )
             (_SANDBOX_HOME / "ccr.pid").write_text(str(router_proc.pid))
+        claude_env = {
+            **os.environ,
+            "ANTHROPIC_BASE_URL": router_url,
+            "ANTHROPIC_AUTH_TOKEN": settings.openai_api_key,
+            "CLAUDE_CODE_DISABLE_TELEMETRY": "1",
+            "HOME": str(_SANDBOX_HOME),
+            "CLAUDE_CONFIG_DIR": str(_SANDBOX_HOME / ".claude"),
+        }
+        # Claude Code refuses --dangerously-skip-permissions when running as root
+        # unless it believes it is already sandboxed. The Docker image runs as
+        # root and the container is our isolation boundary, so opt in there.
+        if hasattr(os, "getuid") and os.getuid() == 0:
+            claude_env["IS_SANDBOX"] = "1"
         try:
             _wait_for_port(_ROUTER_HOST, port, timeout=settings.claudecode_router_startup_timeout)
             result = subprocess.run(
                 ["claude", "-p", prompt, "--dangerously-skip-permissions"],
                 cwd=str(repo_path),
-                env={
-                    **os.environ,
-                    "ANTHROPIC_BASE_URL": router_url,
-                    "ANTHROPIC_AUTH_TOKEN": settings.openai_api_key,
-                    "CLAUDE_CODE_DISABLE_TELEMETRY": "1",
-                    "HOME": str(_SANDBOX_HOME),
-                    "CLAUDE_CONFIG_DIR": str(_SANDBOX_HOME / ".claude"),
-                },
+                env=claude_env,
                 capture_output=True,
                 text=True,
                 timeout=settings.agent_timeout,

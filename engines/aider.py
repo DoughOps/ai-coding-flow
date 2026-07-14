@@ -32,6 +32,7 @@ class AiderEngine(AgentEngine):
             "--model", _litellm_model(settings.openai_model),
             "--yes",
             "--auto-commits",
+            "--no-check-update",
             "--no-stream",
             "--no-show-model-warnings",
             "--map-tokens", str(settings.aider_map_tokens),
@@ -46,6 +47,9 @@ class AiderEngine(AgentEngine):
                 **os.environ,
                 "OPENAI_API_BASE": settings.openai_api_base,
                 "OPENAI_API_KEY": settings.openai_api_key,
+                # Use litellm's bundled model cost map instead of fetching it
+                # from raw.githubusercontent.com, which hangs when offline.
+                "LITELLM_LOCAL_MODEL_COST_MAP": "True",
             },
             capture_output=True,
             text=True,
