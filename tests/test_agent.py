@@ -61,6 +61,55 @@ def test_build_prompt_contains_body():
     assert "Users cannot log in after update" in prompt
 
 
+def test_build_prompt_tells_model_to_create_files():
+    # Weak models otherwise reply "please add these files to the chat" and
+    # deadlock on empty repos instead of proposing new files.
+    prompt = _build_prompt("Add a hello script", "Create hello.py")
+    assert "create" in prompt.lower()
+    assert "do not ask" in prompt.lower()
+
+
+def test_build_prompt_is_language_neutral():
+    # Target repos are not necessarily Python projects.
+    prompt = _build_prompt("Add a hello script", "Create hello.js")
+    assert "python" not in prompt.lower()
+
+
+def test_run_tests_no_py_shim_for_non_pytest_cmd(tmp_path):
+    from agent import _run_tests
+    ok, _ = _run_tests(tmp_path, "echo hello")
+    assert ok
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_tests_restores_existing_conftest_after_pytest(tmp_path):
+    from agent import _run_tests
+    (tmp_path / "conftest.py").write_text("original = True\n")
+    _run_tests(tmp_path, "python3 -m pytest --version")
+    assert (tmp_path / "conftest.py").read_text() == "original = True\n"
+
+
+def test_run_tests_removes_shim_conftest_after_pytest(tmp_path):
+    from agent import _run_tests
+    _run_tests(tmp_path, "python3 -m pytest --version")
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_tests_timeout_returns_failure_instead_of_raising(tmp_path):
+    from agent import _run_tests
+    ok, output = _run_tests(tmp_path, "sleep 5", timeout=1)
+    assert not ok
+    assert "timed out" in output.lower()
+
+
+def test_exclude_build_artifacts_covers_common_ecosystems(tmp_path):
+    (tmp_path / ".git" / "info").mkdir(parents=True)
+    _exclude_build_artifacts(tmp_path)
+    content = (tmp_path / ".git" / "info" / "exclude").read_text()
+    for pattern in ["target/", ".gradle/", "*.class", "*.o", ".venv/", "coverage/"]:
+        assert pattern in content, f"missing {pattern}"
+
+
 def test_repo_slug_github():
     assert _repo_slug("https://github.com/owner/repo") == "owner-repo"
 

@@ -81,7 +81,7 @@ def run_agent(
             )
         logger.info("Running %s (attempt %d/%d) for issue #%d", engine.name, attempt + 1, settings.max_retries, issue_number)
         engine.run(repo_path, prompt, settings)
-        passed, error_msg = _run_tests(repo_path, settings.test_cmd)
+        passed, error_msg = _run_tests(repo_path, settings.test_cmd, timeout=settings.agent_timeout)
         if passed:
             return True, str(repo_path), initial_commit, ""
 
@@ -160,12 +160,26 @@ def _prepare_repo(
 
 
 _BUILD_ARTIFACT_PATTERNS = [
+    # Python
     "__pycache__/",
     "*.py[cod]",
     ".pytest_cache/",
     ".ruff_cache/",
     ".mypy_cache/",
+    ".tox/",
+    ".venv/",
+    "venv/",
+    ".coverage",
+    # JS/TS
     "node_modules/",
+    ".next/",
+    "coverage/",
+    # JVM / Rust (target/ is generated output for both Maven and Cargo)
+    "target/",
+    ".gradle/",
+    "*.class",
+    # C/C++
+    "*.o",
     ".DS_Store",
 ]
 
@@ -212,49 +226,72 @@ def _git_head(repo_path: Path) -> str:
 
 def _build_prompt(title: str, body: str) -> str:
     return (
-        f"Resolve the following issue in this Python repository.\n\n"
+        f"Resolve the following issue in this repository. Use the language\n"
+        f"and conventions already used by the repository (or the language the\n"
+        f"issue asks for, if the repository is empty).\n\n"
         f"Issue title: {title}\n\n"
         f"Issue description:\n{body}\n\n"
         f"Instructions:\n"
         f"1. Understand what the issue requires.\n"
-        f"2. Write the necessary code changes.\n"
+        f"2. Write the necessary code changes. Create any new files the issue\n"
+        f"   needs, using full relative paths. The repository may be empty or\n"
+        f"   may not contain the relevant files yet — in that case create them\n"
+        f"   from scratch. Do not ask for files to be added to the chat and do\n"
+        f"   not ask questions; there is no human in the loop, so act directly.\n"
         f"3. Write or update tests that verify the fix.\n"
         f"4. Make sure all tests pass before finishing."
     )
 
 
 _PY_COMPAT_SHIM = '''\
-import pathlib
-import py.path
-_orig_local_init = py.path.local.__init__
-def _patched_local_init(self, path=None, expanduser=False):
-    if isinstance(path, pathlib.Path):
-        path = str(path)
-    _orig_local_init(self, path=path, expanduser=expanduser)
-py.path.local.__init__ = _patched_local_init
+try:
+    import pathlib
+    import py.path
+    _orig_local_init = py.path.local.__init__
+    def _patched_local_init(self, path=None, expanduser=False):
+        if isinstance(path, pathlib.Path):
+            path = str(path)
+        _orig_local_init(self, path=path, expanduser=expanduser)
+    py.path.local.__init__ = _patched_local_init
+except Exception:
+    pass
 '''
 
 
-def _ensure_py_compat(repo_path: Path) -> None:
-    """Prepend py.path.local shim to conftest.py so pytest 8 + py 1.4 don't crash."""
+def _ensure_py_compat(repo_path: Path):
+    """Prepend py.path.local shim to conftest.py so pytest 8 + py 1.4 don't crash.
+
+    Returns a callable that restores conftest.py to its original state, so the
+    shim only exists for the duration of the test run and can never be swept
+    onto the AI branch by an engine's ``git add -A`` on a retry attempt."""
     conf = repo_path / "conftest.py"
     if conf.exists():
-        content = conf.read_text()
-        if "py.path.local.__init__" not in content:
-            conf.write_text(_PY_COMPAT_SHIM + "\n" + content)
-    else:
-        conf.write_text(_PY_COMPAT_SHIM)
+        original = conf.read_text()
+        if "py.path.local.__init__" in original:
+            return lambda: None
+        conf.write_text(_PY_COMPAT_SHIM + "\n" + original)
+        return lambda: conf.write_text(original)
+    conf.write_text(_PY_COMPAT_SHIM)
+    return lambda: conf.unlink(missing_ok=True)
 
 
-def _run_tests(repo_path: Path, test_cmd: str) -> tuple[bool, str]:
-    _ensure_py_compat(repo_path)
-    result = subprocess.run(
-        shlex.split(test_cmd),
-        cwd=str(repo_path),
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+def _run_tests(repo_path: Path, test_cmd: str, timeout: int = 600) -> tuple[bool, str]:
+    # The conftest shim is Python-specific; only apply it when the test
+    # command actually runs pytest — target repos can be any language.
+    restore = _ensure_py_compat(repo_path) if "pytest" in test_cmd else None
+    try:
+        result = subprocess.run(
+            shlex.split(test_cmd),
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"Test command timed out after {timeout} seconds."
+    finally:
+        if restore is not None:
+            restore()
     output = (result.stdout + result.stderr)[-3000:]
     return result.returncode == 0, output
 
