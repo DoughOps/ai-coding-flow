@@ -1,5 +1,41 @@
+import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock
-from agent import _build_prompt, _authenticated_url, _repo_slug
+from agent import _build_prompt, _authenticated_url, _repo_slug, _exclude_build_artifacts
+
+
+def _git_init(path: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+
+
+def test_exclude_build_artifacts_prevents_pycache_commit(tmp_path):
+    _git_init(tmp_path)
+    _exclude_build_artifacts(tmp_path)
+    cache = tmp_path / "__pycache__"
+    cache.mkdir()
+    (cache / "mod.cpython-313.pyc").write_bytes(b"\x00")
+    (tmp_path / "real.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path, capture_output=True, text=True, check=True,
+    ).stdout
+    assert "real.py" in staged
+    assert "__pycache__" not in staged
+    assert ".pyc" not in staged
+
+
+def test_exclude_build_artifacts_is_idempotent(tmp_path):
+    _git_init(tmp_path)
+    _exclude_build_artifacts(tmp_path)
+    _exclude_build_artifacts(tmp_path)
+    exclude = (tmp_path / ".git" / "info" / "exclude").read_text()
+    assert exclude.count("__pycache__/") == 1
+
+
+def test_exclude_build_artifacts_noop_when_not_a_repo(tmp_path):
+    # No .git — must not raise.
+    _exclude_build_artifacts(tmp_path / "missing")
 
 
 def _settings(platform="github"):

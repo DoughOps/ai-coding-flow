@@ -174,10 +174,14 @@ async def gitlab_webhook(request: Request, background_tasks: BackgroundTasks):
 
     payload = await request.json()
     attrs = payload.get("object_attributes", {})
-    repo_url = payload.get("project", {}).get("http_url_to_repo", "")
+    # GitLab webhook payloads expose the HTTP clone URL as `git_http_url`
+    # (with `http_url` as an older alias). `http_url_to_repo` is a REST API
+    # field and never appears in webhooks.
+    project = payload.get("project", {})
+    repo_url = project.get("git_http_url") or project.get("http_url", "")
 
     if not repo_url:
-        logger.warning("GitLab webhook missing project.http_url_to_repo — ignoring")
+        logger.warning("GitLab webhook missing project.git_http_url — ignoring")
         return {"status": "ignored"}
 
     if payload.get("object_kind") == "issue" and attrs.get("action") == "open":

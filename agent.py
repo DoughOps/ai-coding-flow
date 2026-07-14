@@ -58,6 +58,7 @@ def run_agent(
     repo_path = WORK_DIR / f"{_repo_slug(repo_url)}-{issue_number}"
     _prepare_repo(repo_path, branch, settings, repo_url, platform, start_ref=start_ref)
     _configure_git_user(repo_path)
+    _exclude_build_artifacts(repo_path)
     initial_commit = _git_head(repo_path)
 
     prompt = _build_prompt(issue_title, issue_body)
@@ -156,6 +157,38 @@ def _prepare_repo(
     if start_ref:
         checkout_cmd.append(start_ref)
     subprocess.run(checkout_cmd, cwd=repo_path, check=True, capture_output=True)
+
+
+_BUILD_ARTIFACT_PATTERNS = [
+    "__pycache__/",
+    "*.py[cod]",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".mypy_cache/",
+    "node_modules/",
+    ".DS_Store",
+]
+
+
+def _exclude_build_artifacts(repo_path: Path) -> None:
+    """Add common build/test artifacts to the clone's local git excludes so the
+    engines' ``git add -A`` never commits them onto the AI branch.
+
+    Uses ``.git/info/exclude`` (untracked, local to this clone) rather than the
+    repo's tracked ``.gitignore``, so the target repo's own files are left
+    untouched. Idempotent — patterns already present are not re-added.
+    """
+    exclude_file = repo_path / ".git" / "info" / "exclude"
+    if not exclude_file.parent.exists():
+        return
+    existing = exclude_file.read_text().splitlines() if exclude_file.exists() else []
+    missing = [p for p in _BUILD_ARTIFACT_PATTERNS if p not in existing]
+    if not missing:
+        return
+    with exclude_file.open("a") as f:
+        if existing and existing[-1].strip():
+            f.write("\n")
+        f.write("\n".join(missing) + "\n")
 
 
 def _configure_git_user(repo_path: Path) -> None:

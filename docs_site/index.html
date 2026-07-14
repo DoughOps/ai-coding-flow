@@ -1438,6 +1438,12 @@ pytest -k "get_labels" -v</code></pre>
           </tbody>
         </table>
       </div>
+
+      <h3>What the bot commits</h3>
+      <p>The bot works on a dedicated branch, commits the changes produced for your issue, and opens the pull request from that branch. While solving the issue it may run your project's code and tests, which can create throwaway files — Python <code>__pycache__/</code> and <code>*.pyc</code>, <code>.pytest_cache/</code>, linter caches, <code>node_modules/</code>, and the like.</p>
+      <div class="callout callout-info">
+        <p><strong>Generated artifacts stay out of the pull request.</strong> These build and test artifacts are automatically excluded from the commit, so your PR contains only the real source changes — there's nothing to clean up after merging. This is applied per run and never modifies your repository's own <code>.gitignore</code>.</p>
+      </div>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════════
@@ -1652,6 +1658,16 @@ the input is None. Also add a unit test for an empty list input.</code></pre>
       <p>A summary of every user-facing feature and notable fix since the project began. Most recent changes appear first.</p>
 
       <div style="margin-top:32px;">
+
+        <!-- ── 2026-07-14 (webhook + branch hygiene) ── -->
+        <div class="cl-entry">
+          <div class="cl-date">2026-07-14</div>
+          <h3>GitLab webhook &amp; branch-hygiene fixes</h3>
+          <ul>
+            <li><span class="cl-fix">Fix</span> <strong>GitLab webhooks were silently ignored</strong> — the handler read the repository URL from <code>project.http_url_to_repo</code>, a REST API field that does not exist in webhook payloads, so every event was dropped with a "missing project URL" warning. It now reads <code>project.git_http_url</code> (with <code>http_url</code> as a fallback), the fields GitLab actually sends.</li>
+            <li><span class="cl-fix">Fix</span> <strong>Build artifacts no longer committed to AI branches</strong> — generated files such as <code>__pycache__/</code>, <code>*.pyc</code>, and <code>.pytest_cache/</code> produced while running your code and tests are added to the clone's local git excludes, so the engines' <code>git add -A</code> never sweeps them onto the pushed branch. Your repository's own <code>.gitignore</code> is left untouched.</li>
+          </ul>
+        </div>
 
         <!-- ── 2026-07-14 ── -->
         <div class="cl-entry">

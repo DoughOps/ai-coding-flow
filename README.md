@@ -138,10 +138,43 @@ Create an issue in your target repo. Within seconds the worker will pick it up, 
 
 ## Docker
 
+The image never contains your `.env` — it's excluded via `.dockerignore` so secrets
+never get baked into a layer. You must supply configuration at runtime, and the
+simplest way is an external `.env` file passed with `--env-file`.
+
+### Run with an external `.env` file
+
+Use a pre-built published image (no local build needed):
+
+```bash
+# Docker Hub
+docker run --env-file .env -p 8000:8000 khchiang1121/ai-coding-flow:latest
+
+# …or GitHub Container Registry (ghcr.io)
+docker run --env-file .env -p 8000:8000 ghcr.io/doughops/ai-coding-flow:latest
+```
+
+- `--env-file .env` loads every `KEY=value` line into the container's environment,
+  where the app reads its settings from. The file stays on your host and is not
+  copied into the image.
+- The path is relative to your current directory; use an absolute path (e.g.
+  `--env-file /srv/secrets/ai-coding-flow.env`) to keep it elsewhere.
+- `-p 8000:8000` maps the container's port 8000 (where the server listens) to your
+  host. The webhook endpoint is then `http://localhost:8000/webhook/github` (or
+  `/webhook/gitlab`); expose it publicly with ngrok as in [Quick Start](#expose-via-ngrok).
+
+Pin a specific version instead of `latest` by using an image tag — either a short
+commit SHA (e.g. `khchiang1121/ai-coding-flow:a75fdbe`) or a released tag.
+
+### Build the image yourself
+
 ```bash
 docker build -t ai-coding-flow .
 docker run --env-file .env -p 8000:8000 ai-coding-flow
 ```
+
+`make docker-build` / `make docker-run` wrap these with the project's image name and
+the current commit SHA as the tag.
 
 ## Architecture
 

@@ -24,7 +24,7 @@ ISSUE_OPENED = {
 
 GITLAB_ISSUE_OPENED = {
     "object_kind": "issue",
-    "project": {"http_url_to_repo": GITLAB_REPO_URL},
+    "project": {"git_http_url": GITLAB_REPO_URL},
     "object_attributes": {
         "iid": 7,
         "title": "Fix bug",
@@ -115,6 +115,34 @@ def test_gitlab_valid_token_queues_job(client):
     assert kwargs["platform"] == "gitlab"
 
 
+def test_gitlab_falls_back_to_http_url(client):
+    payload = {**GITLAB_ISSUE_OPENED, "project": {"http_url": GITLAB_REPO_URL}}
+    body = json.dumps(payload).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/gitlab",
+            content=body,
+            headers={"X-Gitlab-Token": SECRET, "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "queued"
+    assert mock_enqueue.call_args.kwargs["repo_url"] == GITLAB_REPO_URL
+
+
+def test_gitlab_missing_repo_url_is_ignored(client):
+    payload = {**GITLAB_ISSUE_OPENED, "project": {"http_url_to_repo": GITLAB_REPO_URL}}
+    body = json.dumps(payload).encode()
+    with patch("server.enqueue_job", new_callable=AsyncMock) as mock_enqueue:
+        resp = client.post(
+            "/webhook/gitlab",
+            content=body,
+            headers={"X-Gitlab-Token": SECRET, "Content-Type": "application/json"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ignored"
+    mock_enqueue.assert_not_called()
+
+
 def test_gitlab_invalid_token_returns_403(client):
     body = json.dumps(GITLAB_ISSUE_OPENED).encode()
     resp = client.post(
@@ -126,7 +154,7 @@ def test_gitlab_invalid_token_returns_403(client):
 
 
 def test_gitlab_non_issue_event_is_ignored(client):
-    payload = {"object_kind": "push", "project": {"http_url_to_repo": GITLAB_REPO_URL}}
+    payload = {"object_kind": "push", "project": {"git_http_url": GITLAB_REPO_URL}}
     body = json.dumps(payload).encode()
     resp = client.post(
         "/webhook/gitlab",
@@ -153,7 +181,7 @@ GITHUB_NON_AGENT_LABELED = {
 
 GITLAB_LABEL_UPDATED = {
     "object_kind": "issue",
-    "project": {"http_url_to_repo": GITLAB_REPO_URL},
+    "project": {"git_http_url": GITLAB_REPO_URL},
     "object_attributes": {
         "iid": 7,
         "title": "Fix bug",
@@ -170,7 +198,7 @@ GITLAB_LABEL_UPDATED = {
 
 GITLAB_NON_AGENT_LABEL_UPDATED = {
     "object_kind": "issue",
-    "project": {"http_url_to_repo": GITLAB_REPO_URL},
+    "project": {"git_http_url": GITLAB_REPO_URL},
     "object_attributes": {
         "iid": 7,
         "title": "Fix bug",
@@ -268,7 +296,7 @@ GITHUB_BOT_REWORK_COMMENT = {
 
 GITLAB_REWORK_NOTE = {
     "object_kind": "note",
-    "project": {"http_url_to_repo": GITLAB_REPO_URL},
+    "project": {"git_http_url": GITLAB_REPO_URL},
     "object_attributes": {
         "noteable_type": "MergeRequest",
         "note": "/rework please add error handling",
@@ -360,7 +388,7 @@ def test_gitlab_rework_note_queues_rework_job(client):
 def test_gitlab_rework_on_plain_issue_queues_fresh_job(client):
     payload = {
         "object_kind": "note",
-        "project": {"http_url_to_repo": GITLAB_REPO_URL},
+        "project": {"git_http_url": GITLAB_REPO_URL},
         "object_attributes": {
             "noteable_type": "Issue",
             "noteable_id": 7,
