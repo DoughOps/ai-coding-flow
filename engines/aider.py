@@ -9,6 +9,18 @@ from engines.base import AgentEngine
 logger = logging.getLogger(__name__)
 
 
+def _litellm_model(model: str) -> str:
+    """aider routes through litellm, which reads the model's first path segment
+    as the provider. OPENAI_API_BASE here is always an OpenAI-compatible endpoint
+    (OpenRouter, ollama, ...), so the model must be routed via litellm's generic
+    'openai/' provider. A bare OpenRouter slug like 'poolside/laguna-m.1:free'
+    would otherwise make litellm treat 'poolside' as the provider and fail with
+    'LLM Provider NOT provided'. Prefix with 'openai/' unless already present."""
+    if model.startswith("openai/"):
+        return model
+    return f"openai/{model}"
+
+
 class AiderEngine(AgentEngine):
     @property
     def name(self) -> str:
@@ -17,7 +29,7 @@ class AiderEngine(AgentEngine):
     def run(self, repo_path: Path, prompt: str, settings: Settings) -> str:
         cmd = [
             "aider",
-            "--model", settings.openai_model,
+            "--model", _litellm_model(settings.openai_model),
             "--yes",
             "--auto-commits",
             "--no-stream",

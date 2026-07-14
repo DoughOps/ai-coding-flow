@@ -1,0 +1,8 @@
+{
+  "name": "ai-coding-flow-local-deps",
+  "private": true,
+  "description": "Project-local install of claude-code-router so it never touches the global npm install or the user's real ~/.claude-code-router / ~/.claude state.",
+  "devDependencies": {
+    "@musistudio/claude-code-router": "2.0.0"
+  }
+}

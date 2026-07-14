@@ -7,6 +7,7 @@ install:
 	uv venv --python 3.13 .venv
 	uv pip install -r requirements.txt
 	uv tool install --force --python 3.12 aider-chat@latest
+	npm install
 
 run:
 	uv run uvicorn server:app --env-file .env --port 8000
@@ -18,7 +19,7 @@ test:
 	uv run pytest
 
 clean:
-	rm -rf .venv __pycache__ .pytest_cache
+	rm -rf .venv __pycache__ .pytest_cache node_modules
 
 docker-build:
 	docker build -t $(IMAGE):$(SHA) -t $(IMAGE):latest .

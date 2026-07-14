@@ -96,7 +96,7 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |---|---|---|
-| `CLAUDECODE_ROUTER_PORT` | Port the `ccr` router listens on | `3456` |
+| `CLAUDECODE_ROUTER_PORT` | Port the project's own sandboxed `ccr` router listens on (not `ccr`'s own default `3456`, so it never collides with a `ccr` you run yourself) | `18456` |
 | `CLAUDECODE_ROUTER_STARTUP_TIMEOUT` | Seconds to wait for `ccr` to start | `15` |
 
 ### Server

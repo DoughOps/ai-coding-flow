@@ -826,7 +826,7 @@ docker run --env-file .env -p 8000:8000 ai-coding-flow</code></pre>
         <table>
           <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>CLAUDECODE_ROUTER_PORT</code></td><td><code>3456</code></td><td>Port the <code>ccr</code> router listens on</td></tr>
+            <tr><td><code>CLAUDECODE_ROUTER_PORT</code></td><td><code>18456</code></td><td>Port the project's own sandboxed <code>ccr</code> router listens on (not <code>ccr</code>'s own default <code>3456</code>)</td></tr>
             <tr><td><code>CLAUDECODE_ROUTER_STARTUP_TIMEOUT</code></td><td><code>15</code></td><td>Seconds to wait for <code>ccr</code> to become ready</td></tr>
           </tbody>
         </table>
@@ -1183,8 +1183,8 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
         <table>
           <tbody>
             <tr><td><strong>Label</strong></td><td><span class="label-pill label-blue">agent: claudecode</span></td></tr>
-            <tr><td><strong>Binaries</strong></td><td><code>claude</code> (Claude Code CLI) + <code>ccr</code> (claude-code-router)</td></tr>
-            <tr><td><strong>LLM config</strong></td><td>Writes <code>~/.claude-code-router/config.json</code> routing to your <code>OPENAI_API_BASE</code> endpoint via <code>@musistudio/claude-code-router</code></td></tr>
+            <tr><td><strong>Binaries</strong></td><td><code>claude</code> (Claude Code CLI, your normal install) + <code>ccr</code> (claude-code-router, installed project-locally via <code>npm install</code>)</td></tr>
+            <tr><td><strong>LLM config</strong></td><td>Writes <code>config.json</code> routing to your <code>OPENAI_API_BASE</code> endpoint via <code>@musistudio/claude-code-router</code>, sandboxed under a project-local <code>$HOME</code> (not <code>~/.claude-code-router</code> or <code>~/.claude</code>) so it never touches your own daily <code>ccr</code>/<code>claude</code> state</td></tr>
             <tr><td><strong>Flags</strong></td><td><code>claude -p &lt;prompt&gt; --dangerously-skip-permissions</code> with <code>ANTHROPIC_BASE_URL=http://127.0.0.1:&lt;port&gt;</code></td></tr>
             <tr><td><strong>Settings</strong></td><td><code>CLAUDECODE_ROUTER_PORT</code>, <code>CLAUDECODE_ROUTER_STARTUP_TIMEOUT</code>, <code>AGENT_TIMEOUT</code></td></tr>
             <tr><td><strong>SSL</strong></td><td>Sets <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> on the router process when <code>VERIFY_ENGINE_SSL=false</code></td></tr>
@@ -1652,6 +1652,19 @@ the input is None. Also add a unit test for an empty list input.</code></pre>
       <p>A summary of every user-facing feature and notable fix since the project began. Most recent changes appear first.</p>
 
       <div style="margin-top:32px;">
+
+        <!-- ── 2026-07-14 ── -->
+        <div class="cl-entry">
+          <div class="cl-date">2026-07-14</div>
+          <h3>Sandboxed Claude Code engine &amp; OpenRouter routing fixes</h3>
+          <ul>
+            <li><span class="cl-feat">Feature</span> <strong>Sandboxed Claude Code runs</strong> — the <code>ccr</code> router and <code>claude</code> CLI now run under a project-local <code>$HOME</code>, so headless engine runs never read or overwrite your own daily <code>~/.claude</code> and <code>~/.claude-code-router</code> state.</li>
+            <li><span class="cl-feat">Feature</span> <strong>Project-local <code>ccr</code></strong> — <code>claude-code-router</code> is installed into the repo via <code>npm install</code> (run by <code>make install</code>) instead of polluting your global npm; the engine falls back to a global <code>ccr</code> on <code>PATH</code> when no local install is present (e.g. inside the Docker image).</li>
+            <li><span class="cl-feat">Feature</span> <strong>Dedicated router port</strong> — <code>CLAUDECODE_ROUTER_PORT</code> now defaults to <code>18456</code> (not <code>ccr</code>'s own <code>3456</code>), so the sandboxed router never collides with a <code>ccr</code> you run yourself. The engine refuses to start if the port is held by a router it didn't launch.</li>
+            <li><span class="cl-fix">Fix</span> <strong>OpenRouter reasoning error</strong> — headless <code>claude -p</code> sends <em>thinking disabled</em>, which reached OpenRouter as <code>reasoning.enabled=false</code> and was rejected with HTTP 400 on reasoning-mandatory models. The router config now applies the <code>openrouter</code> transformer to force reasoning on for OpenRouter endpoints.</li>
+            <li><span class="cl-fix">Fix</span> <strong>Aider model routing</strong> — Aider routes through litellm, which needs a provider prefix. Bare OpenRouter slugs (e.g. <code>poolside/laguna-m.1:free</code>) failed with <em>"LLM Provider NOT provided"</em>; the Aider engine now prefixes <code>openai/</code> automatically, so a single <code>OPENAI_MODEL</code> value works across all engines.</li>
+          </ul>
+        </div>
 
         <!-- ── 2026-06-09 ── -->
         <div class="cl-entry">

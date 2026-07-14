@@ -1,4 +1,5 @@
 import json
+import os
 import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
@@ -50,10 +51,32 @@ def test_aider_engine_run_calls_aider_binary():
     cmd = mock_run.call_args[0][0]
     assert cmd[0] == "aider"
     assert "--model" in cmd
-    assert "gpt-4o" in cmd
+    assert "openai/gpt-4o" in cmd
     assert "--message" in cmd
     assert "Fix the login bug" in cmd
     assert output == "Changes applied."
+
+
+def test_aider_engine_prefixes_openai_for_litellm():
+    from engines.aider import AiderEngine
+    s = _mock_settings()
+    s.openai_model = "poolside/laguna-m.1:free"
+    with patch("engines.aider.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        AiderEngine().run(Path("/tmp/repo"), "prompt", s)
+    cmd = mock_run.call_args[0][0]
+    assert cmd[cmd.index("--model") + 1] == "openai/poolside/laguna-m.1:free"
+
+
+def test_aider_engine_does_not_double_prefix_openai():
+    from engines.aider import AiderEngine
+    s = _mock_settings()
+    s.openai_model = "openai/gpt-4o"
+    with patch("engines.aider.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        AiderEngine().run(Path("/tmp/repo"), "prompt", s)
+    cmd = mock_run.call_args[0][0]
+    assert cmd[cmd.index("--model") + 1] == "openai/gpt-4o"
 
 
 def test_aider_engine_run_passes_env_vars():
@@ -200,7 +223,8 @@ def test_claudecode_engine_run_starts_router(tmp_path):
          patch("engines.claudecode.subprocess.run") as mock_run, \
          patch("engines.claudecode._wait_for_port"), \
          patch("engines.claudecode._is_port_open", return_value=False), \
-         patch("engines.claudecode._write_router_config"):
+         patch("engines.claudecode._write_router_config"), \
+         patch("engines.claudecode._ccr_binary", return_value="ccr"):
         mock_popen.return_value = MagicMock()
         mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
         ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
@@ -209,15 +233,27 @@ def test_claudecode_engine_run_starts_router(tmp_path):
     assert cmd[1] == "start"
 
 
-def test_claudecode_engine_skips_router_start_if_already_running(tmp_path):
+def test_claudecode_engine_skips_router_start_if_we_own_it(tmp_path):
     from engines.claudecode import ClaudeCodeEngine
     with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
          patch("engines.claudecode.subprocess.run") as mock_run, \
          patch("engines.claudecode._wait_for_port"), \
          patch("engines.claudecode._is_port_open", return_value=True), \
+         patch("engines.claudecode._our_router_pid", return_value=99999), \
          patch("engines.claudecode._write_router_config"):
         mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
         ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    mock_popen.assert_not_called()
+
+
+def test_claudecode_engine_refuses_foreign_router_on_port(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode._is_port_open", return_value=True), \
+         patch("engines.claudecode._our_router_pid", return_value=None), \
+         patch("engines.claudecode._write_router_config"):
+        with pytest.raises(RuntimeError, match="already in use"):
+            ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
     mock_popen.assert_not_called()
 
 
@@ -257,7 +293,7 @@ def test_claudecode_engine_commits_changes_after_run(tmp_path):
 def test_claudecode_write_config_creates_provider(tmp_path):
     from engines.claudecode import _write_router_config
     s = _mock_settings()
-    with patch("engines.claudecode.Path.home", return_value=tmp_path):
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
         _write_router_config(s)
     config_file = tmp_path / ".claude-code-router" / "config.json"
     assert config_file.exists()
@@ -268,10 +304,86 @@ def test_claudecode_write_config_creates_provider(tmp_path):
     assert config["Router"]["default"] == "custom,gpt-4o"
 
 
+def test_claudecode_write_config_openrouter_forces_reasoning_on(tmp_path):
+    from engines.claudecode import _write_router_config
+    s = _mock_settings()
+    s.openai_api_base = "https://openrouter.ai/api/v1"
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        _write_router_config(s)
+    config = json.loads((tmp_path / ".claude-code-router" / "config.json").read_text())
+    provider = config["Providers"][0]
+    assert provider["transformer"] == {
+        "use": [["openrouter", {"reasoning": {"effort": "high", "enabled": True}}]]
+    }
+
+
+def test_claudecode_write_config_generic_endpoint_has_no_transformer(tmp_path):
+    from engines.claudecode import _write_router_config
+    s = _mock_settings()
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        _write_router_config(s)
+    config = json.loads((tmp_path / ".claude-code-router" / "config.json").read_text())
+    assert "transformer" not in config["Providers"][0]
+
+
 def test_get_engine_returns_claudecode():
     from engines import get_engine
     from engines.claudecode import ClaudeCodeEngine
     assert isinstance(get_engine("claudecode"), ClaudeCodeEngine)
+
+
+def test_our_router_pid_none_when_no_pid_file(tmp_path):
+    from engines import claudecode
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        assert claudecode._our_router_pid(18456) is None
+
+
+def test_our_router_pid_none_when_process_dead(tmp_path):
+    from engines import claudecode
+    (tmp_path / "ccr.pid").write_text("999999999")
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        assert claudecode._our_router_pid(18456) is None
+
+
+def test_our_router_pid_returns_pid_when_alive(tmp_path):
+    from engines import claudecode
+    (tmp_path / "ccr.pid").write_text(str(os.getpid()))
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        assert claudecode._our_router_pid(18456) == os.getpid()
+
+
+def test_ccr_binary_prefers_project_local_install(tmp_path):
+    from engines import claudecode
+    local_bin = tmp_path / "node_modules" / ".bin" / "ccr"
+    local_bin.parent.mkdir(parents=True)
+    local_bin.write_text("#!/bin/sh\n")
+    with patch("engines.claudecode._PROJECT_ROOT", tmp_path):
+        assert claudecode._ccr_binary() == str(local_bin)
+
+
+def test_ccr_binary_falls_back_to_global_path(tmp_path):
+    from engines import claudecode
+    with patch("engines.claudecode._PROJECT_ROOT", tmp_path), \
+         patch("engines.claudecode.shutil.which", return_value="/usr/local/bin/ccr"):
+        assert claudecode._ccr_binary() == "/usr/local/bin/ccr"
+
+
+def test_claudecode_engine_run_isolates_home_for_router_and_claude(tmp_path):
+    from engines.claudecode import ClaudeCodeEngine
+    with patch("engines.claudecode.subprocess.Popen") as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"), \
+         patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        mock_popen.return_value = MagicMock()
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    router_env = mock_popen.call_args[1]["env"]
+    assert router_env["HOME"] == str(tmp_path)
+    claude_env = mock_run.call_args_list[0][1]["env"]
+    assert claude_env["HOME"] == str(tmp_path)
+    assert claude_env["CLAUDE_CONFIG_DIR"] == str(tmp_path / ".claude")
 
 
 @pytest.mark.skipif(
