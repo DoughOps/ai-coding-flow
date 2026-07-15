@@ -174,6 +174,20 @@ def test_opencode_write_config_creates_provider(tmp_path):
     assert "gpt-4o" in provider["models"]
 
 
+def test_opencode_config_write_is_atomic(tmp_path):
+    from engines.opencode import _write_opencode_config
+    s = _mock_settings()
+    with patch("engines.opencode.Path.home", return_value=tmp_path), \
+         patch("engines.opencode.os.replace", side_effect=os.replace) as mock_replace:
+        _write_opencode_config(s)
+    mock_replace.assert_called_once()
+    src, dst = mock_replace.call_args[0]
+    assert Path(dst) == tmp_path / ".config" / "opencode" / "opencode.jsonc"
+    assert Path(src).parent == Path(dst).parent
+    config = json.loads(Path(dst).read_text())
+    assert "provider" in config
+
+
 @pytest.mark.skipif(
     __import__("shutil").which("opencode") is None,
     reason="opencode binary not installed",
@@ -437,3 +451,70 @@ def test_claude_binary_accepts_help():
     result = subprocess.run(["claude", "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "print" in (result.stdout + result.stderr).lower()
+
+
+# ── shared persistent router ──────────────────────────────────────────────────
+
+def _reset_router_state(claudecode, tmp_path):
+    claudecode._router_proc = None
+    return patch("engines.claudecode._SANDBOX_HOME", tmp_path)
+
+
+def test_claudecode_second_run_reuses_router(tmp_path):
+    from engines import claudecode
+    from engines.claudecode import ClaudeCodeEngine
+    port_open = {"value": False}
+
+    def fake_popen(*args, **kwargs):
+        port_open["value"] = True
+        return MagicMock(pid=12345)
+
+    with _reset_router_state(claudecode, tmp_path), \
+         patch("engines.claudecode.subprocess.Popen", side_effect=fake_popen) as mock_popen, \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", side_effect=lambda h, p: port_open["value"]), \
+         patch("engines.claudecode._our_router_pid", return_value=12345), \
+         patch("engines.claudecode._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        engine = ClaudeCodeEngine()
+        engine.run(tmp_path, "first", _mock_settings())
+        engine.run(tmp_path, "second", _mock_settings())
+    assert mock_popen.call_count == 1
+
+
+def test_claudecode_run_does_not_terminate_router(tmp_path):
+    from engines import claudecode
+    from engines.claudecode import ClaudeCodeEngine
+    proc = MagicMock(pid=12345)
+    with _reset_router_state(claudecode, tmp_path), \
+         patch("engines.claudecode.subprocess.Popen", return_value=proc), \
+         patch("engines.claudecode.subprocess.run") as mock_run, \
+         patch("engines.claudecode._wait_for_port"), \
+         patch("engines.claudecode._is_port_open", return_value=False), \
+         patch("engines.claudecode._write_router_config"):
+        mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        ClaudeCodeEngine().run(tmp_path, "prompt", _mock_settings())
+    proc.terminate.assert_not_called()
+    proc.kill.assert_not_called()
+
+
+def test_shutdown_router_terminates_started_router(tmp_path):
+    from engines import claudecode
+    proc = MagicMock(pid=12345)
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        claudecode._router_proc = proc
+        # pid file is cleanup-only, not ownership evidence: ownership is
+        # determined solely by the in-memory `_router_proc` handle.
+        (tmp_path / "ccr.pid").write_text("12345")
+        claudecode.shutdown_router()
+    proc.terminate.assert_called_once()
+    assert claudecode._router_proc is None
+    assert not (tmp_path / "ccr.pid").exists()
+
+
+def test_shutdown_router_noop_when_not_started(tmp_path):
+    from engines import claudecode
+    with patch("engines.claudecode._SANDBOX_HOME", tmp_path):
+        claudecode._router_proc = None
+        claudecode.shutdown_router()  # must not raise

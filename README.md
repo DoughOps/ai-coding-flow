@@ -12,7 +12,7 @@ Issue Created → Webhook → AI Codes + Tests → PR/MR Opened → Review Comme
 - **Retry loop** — re-prompts the AI with test failure output up to `MAX_RETRIES` times
 - **AI code review** — after the PR is created, a fresh LLM call reviews the diff and posts a structured comment
 - **Offline-capable** — works with any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, etc.)
-- **Sequential queue** — processes one issue at a time to avoid git conflicts
+- **Concurrent queue** — runs up to `MAX_CONCURRENT_JOBS` jobs in parallel (default 3); jobs for the same issue are serialized to avoid git conflicts
 
 ## How It Works
 
@@ -75,6 +75,7 @@ cp .env.example .env
 |---|---|---|
 | `DEFAULT_AGENT` | Engine to use: `aider`, `opencode`, or `claudecode` (override per-issue with label `agent: <name>`) | `aider` |
 | `MAX_RETRIES` | Max test-fix cycles before giving up | `3` |
+| `MAX_CONCURRENT_JOBS` | How many jobs run in parallel; same-issue jobs never overlap | `3` |
 | `TEST_CMD` | Command to run tests; leave empty to skip | — |
 | `AGENT_TIMEOUT` | Seconds before an engine subprocess is killed | `600` |
 
@@ -211,7 +212,7 @@ GitHub/GitLab Issue Created
 | File | Purpose |
 |---|---|
 | `server.py` | FastAPI app, webhook endpoints, HMAC verification |
-| `worker.py` | asyncio job queue, orchestrates each issue |
+| `worker.py` | asyncio job queue + worker pool, orchestrates each issue |
 | `agent.py` | Clone/push helpers, retry loop |
 | `engines/` | Pluggable engine adapters: `aider`, `opencode`, `claudecode` |
 | `reviewer.py` | Fresh LLM call to review the final diff |

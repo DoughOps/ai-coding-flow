@@ -16,8 +16,8 @@ from fastapi.staticfiles import StaticFiles
 
 from config import Settings
 from engine_test import get_test_run, run_smoke_test, start_test_run
-from engines import get_engine
-from worker import enqueue_job, start_worker
+from engines import claudecode, get_engine
+from worker import enqueue_job, start_workers
 
 logger = logging.getLogger(__name__)
 settings = Settings()
@@ -37,13 +37,14 @@ _configure_insecure_warnings(settings)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store.init_db(settings.db_path)
-    task = asyncio.create_task(start_worker(settings))
+    task = asyncio.create_task(start_workers(settings))
     yield
     task.cancel()
     try:
         await task
     except asyncio.CancelledError:
         pass
+    await asyncio.to_thread(claudecode.shutdown_router)
 
 
 _DOCS_DIR = Path(__file__).parent / "docs_site"

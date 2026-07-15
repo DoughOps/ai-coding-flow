@@ -1,9 +1,11 @@
+import atexit
 import json
 import logging
 import os
 import shutil
 import socket
 import subprocess
+import threading
 import time
 from pathlib import Path
 from tempfile import gettempdir
@@ -22,6 +24,75 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # affected by — the user's own daily ~/.claude / ~/.claude-code-router state.
 _SANDBOX_HOME = Path(gettempdir()) / "ai-coding-flow-ccr-home"
 
+_router_lock = threading.Lock()
+_router_proc: subprocess.Popen | None = None
+
+
+def _ensure_router(settings: Settings) -> None:
+    """Start the shared ccr router if it isn't running; reuse it otherwise.
+
+    Engine runs execute on worker threads (asyncio.to_thread), so the whole
+    check-and-start sequence holds a lock. The router config depends only on
+    settings, so one router serves every concurrent job.
+    """
+    global _router_proc
+    with _router_lock:
+        _SANDBOX_HOME.mkdir(parents=True, exist_ok=True)
+        _write_router_config(settings)
+        port = settings.claudecode_router_port
+
+        if _is_port_open(_ROUTER_HOST, port):
+            if _our_router_pid() is None:
+                raise RuntimeError(
+                    f"Port {port} is already in use by a process this engine didn't start "
+                    f"(possibly a ccr instance you run yourself). Set CLAUDECODE_ROUTER_PORT "
+                    f"to a free port in .env."
+                )
+            return
+
+        router_env = {**os.environ, "HOME": str(_SANDBOX_HOME), "SERVICE_PORT": str(port)}
+        if not settings.verify_engine_ssl:
+            router_env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+        proc = subprocess.Popen(
+            [_ccr_binary(), "start"],
+            env=router_env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        (_SANDBOX_HOME / "ccr.pid").write_text(str(proc.pid))
+        try:
+            _wait_for_port(_ROUTER_HOST, port, timeout=settings.claudecode_router_startup_timeout)
+        except TimeoutError:
+            proc.terminate()
+            (_SANDBOX_HOME / "ccr.pid").unlink(missing_ok=True)
+            raise
+        _router_proc = proc
+
+
+def shutdown_router() -> None:
+    """Terminate the router if this process started it. Idempotent.
+
+    A router inherited from a previous process (alive pid file, port open)
+    is deliberately left running — we only own what we spawned."""
+    global _router_proc
+    with _router_lock:
+        proc = _router_proc
+        _router_proc = None
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        (_SANDBOX_HOME / "ccr.pid").unlink(missing_ok=True)
+
+
+atexit.register(shutdown_router)
+
 
 class ClaudeCodeEngine(AgentEngine):
     @property
@@ -29,34 +100,8 @@ class ClaudeCodeEngine(AgentEngine):
         return "claudecode"
 
     def run(self, repo_path: Path, prompt: str, settings: Settings) -> str:
-        _SANDBOX_HOME.mkdir(parents=True, exist_ok=True)
-        _write_router_config(settings)
-        port = settings.claudecode_router_port
-        router_url = f"http://{_ROUTER_HOST}:{port}"
-
-        port_open = _is_port_open(_ROUTER_HOST, port)
-        if port_open and _our_router_pid() is None:
-            raise RuntimeError(
-                f"Port {port} is already in use by a process this engine didn't start "
-                f"(possibly a ccr instance you run yourself). Set CLAUDECODE_ROUTER_PORT "
-                f"to a free port in .env."
-            )
-
-        # SERVICE_PORT is how ccr itself is told which port to bind — without it,
-        # ccr always falls back to its own hardcoded default (3456), ignoring
-        # CLAUDECODE_ROUTER_PORT entirely.
-        router_env = {**os.environ, "HOME": str(_SANDBOX_HOME), "SERVICE_PORT": str(port)}
-        if not settings.verify_engine_ssl:
-            router_env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
-        router_proc = None
-        if not port_open:
-            router_proc = subprocess.Popen(
-                [_ccr_binary(), "start"],
-                env=router_env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            (_SANDBOX_HOME / "ccr.pid").write_text(str(router_proc.pid))
+        _ensure_router(settings)
+        router_url = f"http://{_ROUTER_HOST}:{settings.claudecode_router_port}"
         claude_env = {
             **os.environ,
             "ANTHROPIC_BASE_URL": router_url,
@@ -70,30 +115,18 @@ class ClaudeCodeEngine(AgentEngine):
         # root and the container is our isolation boundary, so opt in there.
         if hasattr(os, "getuid") and os.getuid() == 0:
             claude_env["IS_SANDBOX"] = "1"
-        try:
-            _wait_for_port(_ROUTER_HOST, port, timeout=settings.claudecode_router_startup_timeout)
-            result = subprocess.run(
-                ["claude", "-p", prompt, "--dangerously-skip-permissions"],
-                cwd=str(repo_path),
-                env=claude_env,
-                capture_output=True,
-                text=True,
-                timeout=settings.agent_timeout,
-            )
-            output = (result.stdout + result.stderr).strip()
-            logger.info("Claude Code output:\n%s", output)
-            _git_commit_all(repo_path)
-            return output
-        finally:
-            if router_proc is not None:
-                try:
-                    router_proc.terminate()
-                except ProcessLookupError:
-                    pass
-                try:
-                    router_proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    router_proc.kill()
+        result = subprocess.run(
+            ["claude", "-p", prompt, "--dangerously-skip-permissions"],
+            cwd=str(repo_path),
+            env=claude_env,
+            capture_output=True,
+            text=True,
+            timeout=settings.agent_timeout,
+        )
+        output = (result.stdout + result.stderr).strip()
+        logger.info("Claude Code output:\n%s", output)
+        _git_commit_all(repo_path)
+        return output
 
 
 def _git_commit_all(repo_path: Path) -> None:

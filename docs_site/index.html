@@ -675,7 +675,6 @@
       <h3>Non-goals</h3>
       <ul>
         <li>Auto-merging PRs/MRs — the human always clicks merge</li>
-        <li>Parallel issue processing — jobs run sequentially</li>
         <li>Handling issue comments or updates — only "issue opened" and label events trigger work</li>
       </ul>
     </section>
@@ -1138,7 +1137,7 @@ OPENAI_MODEL=qwen2.5-coder:32b</code></pre>
       </ol>
 
       <h3>Concurrency model</h3>
-      <p>FastAPI handles concurrent HTTP requests asynchronously. AI coding work runs in a thread pool via <code>asyncio.to_thread()</code>. The job queue is sequential — one issue processes at a time — to avoid git conflicts.</p>
+      <p>FastAPI handles concurrent HTTP requests asynchronously. AI coding work runs in a thread pool via <code>asyncio.to_thread()</code>. A worker pool processes up to <code>MAX_CONCURRENT_JOBS</code> issues in parallel (default 3); jobs targeting the same issue are serialized to avoid git conflicts.</p>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════════
@@ -1646,7 +1645,7 @@ the input is None. Also add a unit test for an empty list input.</code></pre>
       <p>The <a href="/guide/jobs.html">Jobs page ↗</a> shows a table of all recent bot runs with status, issue numbers, PR links, and timestamps. Your admin may require a password to access it.</p>
 
       <div class="callout callout-info">
-        <p><strong>Jobs are processed one at a time.</strong> If multiple issues are opened quickly, they queue up and run sequentially. The <span class="label-pill label-yellow">ai: processing</span> label tells you which one is active.</p>
+        <p><strong>Up to <code>MAX_CONCURRENT_JOBS</code> jobs run at a time (default 3).</strong> Additional issues queue up, and jobs for the same issue never run simultaneously. The <span class="label-pill label-yellow">ai: processing</span> label tells you which issues are active.</p>
       </div>
     </section>
 
